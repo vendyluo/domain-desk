@@ -64,7 +64,9 @@
               <ul class="m-0 grid list-none gap-2 p-0">
                 {#each files(String(message.id)) as attachment}
                   <li class="border-l-2 border-copper/50 pl-3">
-                    <strong class="block text-sm">{attachment.filename || 'Unnamed file'}</strong>
+                    <a class="block text-sm font-semibold text-teal underline decoration-teal/35 underline-offset-4" href={'/attachments/' + encodeURIComponent(String(attachment.id))}>
+                      {attachment.filename || 'Unnamed file'}
+                    </a>
                     <span class="text-xs leading-relaxed text-muted">{attachment.media_type} · {Number(attachment.size).toLocaleString()} bytes · {attachment.disposition || 'unspecified'}{attachment.content_id ? ` · Content-ID ${attachment.content_id}` : ''}</span>
                   </li>
                 {/each}

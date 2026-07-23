@@ -58,7 +58,7 @@ LOCAL_DEV=true npm run dev
 3. Deploy only after Access is ready: `npx wrangler deploy`.
 4. In the domain's Email Routing settings, enable routing without replacing an existing mail provider unintentionally. Create an exact custom-address rule (for example `hello@example.com`) whose action sends to this Worker. The envelope recipient must exactly match a seeded `mailbox_identities.address`; unknown mailboxes are rejected and create no CRM state.
 
-Send a plain-text test email with a small attachment from an external account. Check structured, body-free logs with `npx wrangler tail`, open the Access-protected Worker UI, and verify the inbox row, contact, text body, timestamps, and attachment metadata. Re-deliver the same message and verify it remains one message. HTML is parsed only to obtain MIME structure and is never stored/rendered as UI content; the UI displays `email.text` only.
+Send a plain-text test email with a small attachment from an external account. Check structured, body-free logs with `npx wrangler tail`, open the Access-protected Worker UI, and verify the inbox row, contact, text body, timestamps, attachment metadata, and authorized download. Downloads resolve the D1 relation before reading R2, force a safe content disposition, and fail explicitly when the referenced binary is missing or inconsistent. Re-deliver the same message and verify it remains one message. HTML is parsed only to obtain MIME structure and is never stored/rendered as UI content; the UI displays `email.text` only.
 
 ## Behavior and troubleshooting
 

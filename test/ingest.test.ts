@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { ingestRaw } from '../src/ingest';
 import { authorizeRequest } from '../src/auth';
+import { attachmentResponse } from '../src/lib/server/attachments';
 import type { Env } from '../src/types';
 
 const bytes = (s: string) => new TextEncoder().encode(s).buffer;
@@ -44,6 +45,20 @@ describe('inbound ingestion', () => {
     const raw = bytes('From: A <a@x.test>\r\nTo: hello@example.com\r\nMessage-ID: <attach@x>\r\nContent-Type: multipart/mixed; boundary=z\r\n\r\n--z\r\nContent-Type: text/plain\r\n\r\nHi\r\n--z\r\nContent-Type: application/octet-stream; name=x.bin\r\nContent-Disposition: attachment; filename=x.bin\r\nContent-ID: <binary-1>\r\nContent-Transfer-Encoding: base64\r\n\r\nAQIDBA==\r\n--z--');
     await ingestRaw(env as Env, 'hello@example.com', raw); const meta = await env.DB.prepare('SELECT * FROM attachments').first<Record<string,string|number>>(); expect(meta).toMatchObject({ size: 4, disposition: 'attachment', content_id: '<binary-1>' }); expect(new Uint8Array(await (await env.ATTACHMENTS.get(String(meta!.object_key)))!.arrayBuffer())).toEqual(new Uint8Array([1,2,3,4]));
     await ingestRaw(env as Env, 'hello@example.com', raw); expect(await count('attachments')).toBe(1); expect((await env.ATTACHMENTS.list()).objects).toHaveLength(1);
+  });
+  it('downloads only related R2 binary with safe headers and reports storage drift', async () => {
+    const raw = bytes('From: A <a@x.test>\r\nTo: hello@example.com\r\nMessage-ID: <download@x>\r\nContent-Type: multipart/mixed; boundary=z\r\n\r\n--z\r\nContent-Type: text/plain\r\n\r\nHi\r\n--z\r\nContent-Type: application/octet-stream; name="報價/\".bin"\r\nContent-Disposition: attachment; filename="報價/\".bin"\r\nContent-Transfer-Encoding: base64\r\n\r\nAQIDBA==\r\n--z--');
+    await ingestRaw(env as Env, 'hello@example.com', raw);
+    const metadata = await env.DB.prepare('SELECT id,object_key FROM attachments').first<{ id: string; object_key: string }>();
+    const response = await attachmentResponse(env.DB, env.ATTACHMENTS, metadata!.id);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/octet-stream');
+    expect(response.headers.get('content-disposition')).toContain("filename*=UTF-8''");
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+    expect((await attachmentResponse(env.DB, env.ATTACHMENTS, 'missing')).status).toBe(404);
+    await env.ATTACHMENTS.delete(metadata!.object_key);
+    expect((await attachmentResponse(env.DB, env.ATTACHMENTS, metadata!.id)).status).toBe(410);
   });
   it('leaves no CRM metadata when R2 attachment storage fails', async () => {
     const failing = { ...(env as unknown as Env), ATTACHMENTS: new Proxy(env.ATTACHMENTS, { get(target, prop) { if (prop === 'put') return () => Promise.reject(new Error('R2 unavailable')); const value = Reflect.get(target, prop); return typeof value === 'function' ? value.bind(target) : value; } }) } as Env;
