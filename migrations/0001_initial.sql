@@ -1,0 +1,11 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE domains (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE products (id TEXT PRIMARY KEY, domain_id TEXT NOT NULL REFERENCES domains(id), name TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE mailbox_identities (id TEXT PRIMARY KEY, product_id TEXT NOT NULL REFERENCES products(id), address TEXT NOT NULL UNIQUE COLLATE NOCASE, display_name TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE contacts (id TEXT PRIMARY KEY, display_name TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE contact_email_addresses (id TEXT PRIMARY KEY, contact_id TEXT NOT NULL REFERENCES contacts(id), address TEXT NOT NULL UNIQUE COLLATE NOCASE, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE conversations (id TEXT PRIMARY KEY, mailbox_identity_id TEXT NOT NULL REFERENCES mailbox_identities(id), contact_id TEXT NOT NULL REFERENCES contacts(id), subject TEXT, needs_attention INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE messages (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id), mailbox_identity_id TEXT NOT NULL REFERENCES mailbox_identities(id), contact_id TEXT NOT NULL REFERENCES contacts(id), dedupe_key TEXT NOT NULL, message_id TEXT, in_reply_to TEXT, references_json TEXT NOT NULL DEFAULT '[]', sender_address TEXT NOT NULL, sender_name TEXT, subject TEXT, text_body TEXT, sent_at TEXT, received_at TEXT NOT NULL, ingested_at TEXT NOT NULL, UNIQUE(mailbox_identity_id, dedupe_key));
+CREATE INDEX messages_message_id ON messages(mailbox_identity_id, message_id);
+CREATE TABLE message_recipients (id TEXT PRIMARY KEY, message_id TEXT NOT NULL REFERENCES messages(id), mailbox_identity_id TEXT REFERENCES mailbox_identities(id), kind TEXT NOT NULL CHECK(kind IN ('to','cc','bcc')), address TEXT NOT NULL, display_name TEXT);
+CREATE TABLE attachments (id TEXT PRIMARY KEY, message_id TEXT NOT NULL REFERENCES messages(id), filename TEXT, media_type TEXT NOT NULL, size INTEGER NOT NULL, content_hash TEXT NOT NULL, object_key TEXT NOT NULL UNIQUE, content_id TEXT, disposition TEXT CHECK(disposition IN ('attachment','inline')));

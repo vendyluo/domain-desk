@@ -1,0 +1,34 @@
+name = "cloudflare-domain-crm"
+main = "src/index.ts"
+compatibility_date = "2026-07-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "domain-crm"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "domain-crm-attachments"
+
+[vars]
+LOCAL_DEV = "false"
+ACCESS_TEAM_DOMAIN = "https://your-team.cloudflareaccess.com"
+ACCESS_AUD = "replace-with-access-application-aud"
+
+[env.local.vars]
+LOCAL_DEV = "true"
+ACCESS_TEAM_DOMAIN = "http://local.invalid"
+ACCESS_AUD = "local-development-only"
+
+[[env.local.d1_databases]]
+binding = "DB"
+database_name = "domain-crm"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[env.local.r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "domain-crm-attachments"

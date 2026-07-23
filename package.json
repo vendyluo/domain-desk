@@ -1,0 +1,27 @@
+{
+  "name": "cloudflare-domain-crm",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "wrangler dev --env local",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "wrangler deploy --dry-run --outdir dist --env=",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "hono": "4.12.31",
+    "jose": "6.2.4",
+    "postal-mime": "2.7.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.18.7",
+    "@cloudflare/workers-types": "5.20260723.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10",
+    "wrangler": "4.113.0"
+  }
+}

@@ -1,70 +1,85 @@
 # Cloudflare Domain CRM
 
-A self-hosted, open-source CRM that turns domains in your Cloudflare account into working business inboxes.
+A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. The Hono `fetch` handler provides a text-only inbox and conversation detail UI. Raw MIME archiving is intentionally deferred.
 
-> Your domains, your inbox, your CRM, your Cloudflare account.
+This first slice supports exactly manually configured domains, products, and mailboxes. It does **not** configure DNS, send mail, use AI, queues, Durable Objects, or act as a generic CRM.
 
-## Why
+## Prerequisites and install
 
-Buying a domain and publishing a landing page is easy. Giving every experiment a real inbox, remembering which product a conversation belongs to, and following up consistently is not.
+- Cloudflare account with Workers, D1, R2, Email Routing, and Access
+- Wrangler login (`npx wrangler login`) or appropriately scoped CI credentials
+- Node.js 22 or later (Wrangler 4 requires it)
 
-Cloudflare Domain CRM is personal-first software for people who operate many domains and products. It connects selected Cloudflare zones to Email Routing, receives mail in a Worker, and organizes each message into a product-aware relationship timeline.
-
-```text
-Cloudflare domains
-→ business inboxes
-→ contacts and conversations
-→ opportunities
-→ next actions
+```sh
+npm install
+npm run check                 # typecheck, Worker-runtime tests, dry-run bundle
 ```
 
-## Intended experience
+## Create and configure production resources
 
-```text
-Deploy to Cloudflare
-→ choose an account and domains
-→ inspect current DNS and email configuration
-→ preview the proposed changes
-→ approve Email Routing setup
-→ send a test email
-→ see the first conversation in the CRM
+Do not deploy before completing the Access steps below.
+
+```sh
+npx wrangler d1 create domain-crm
+npx wrangler r2 bucket create domain-crm-attachments
 ```
 
-Everything runs in the user's own Cloudflare account. There is no required central SaaS control plane.
+Copy the D1 UUID printed by the first command into `database_id` in the top-level `[[d1_databases]]` block of `wrangler.toml` (leave the local environment placeholder alone). Names and bindings must remain `domain-crm`/`DB` and `domain-crm-attachments`/`ATTACHMENTS`.
 
-## Initial product surface
+```sh
+npm run build                              # validates/bundles; never deploys
+npx wrangler d1 migrations apply domain-crm --remote
+```
 
-- Domain portfolio and email-readiness status
-- Safe Email Routing setup with change previews
-- Business inboxes for selected domains and addresses
-- Contacts, conversations, products, opportunities, and next actions
-- Attachments and RFC-compatible email threading
-- AI-assisted classification, summaries, and reply drafts
-- Human confirmation before sending email
-- Audit history for DNS, routing, and CRM mutations
+Manually seed the one initial context, replacing all sample values. IDs are stable labels you choose:
 
-## Cloudflare-native architecture
+```sh
+npx wrangler d1 execute domain-crm --remote --command "INSERT INTO domains(id,name) VALUES('domain-main','example.com'); INSERT INTO products(id,domain_id,name) VALUES('product-main','domain-main','Example Product'); INSERT INTO mailbox_identities(id,product_id,address,display_name) VALUES('mailbox-hello','product-main','hello@example.com','Hello');"
+```
 
-- **Workers** for the application, API, and inbound email handler
-- **D1** for CRM and message metadata
-- **R2** for attachments and optional raw MIME archives
-- **Queues or Workflows** for reliable ingestion and outbound delivery
-- **Durable Objects** only where serialized state or agent sessions are useful
-- **Workers AI** for optional classification, summarization, and drafting
-- **Email Routing** for inbound mail
+The schema migration creates only the nine application tables named in `DESIGN.md` slice scope (plus Wrangler's migration metadata when migrations are applied).
 
-See [DESIGN.md](./DESIGN.md) for the product boundary, setup flow, data model, security constraints, and first development slices.
+## Safe local development
 
-## Status
+`npm run dev` explicitly selects Wrangler's `local` environment, where `LOCAL_DEV=true` disables the UI's Access-header guard. Local D1/R2 emulation is used; it does not touch production resources. Never set `LOCAL_DEV=true` in the top-level production vars and never publish the local environment.
 
-The repository currently contains the approved product direction. Implementation is beginning.
+```sh
+npx wrangler d1 migrations apply domain-crm --local --env local
+npx wrangler d1 execute domain-crm --local --env local --command "INSERT INTO domains(id,name) VALUES('domain-main','example.test'); INSERT INTO products(id,domain_id,name) VALUES('product-main','domain-main','Test Product'); INSERT INTO mailbox_identities(id,product_id,address) VALUES('mailbox-hello','product-main','hello@example.test');"
+npm run dev
+```
 
-## Reference
+## Protect with Cloudflare Access, deploy, and route email
 
-The project is informed by Cloudflare's [agentic-inbox](https://github.com/cloudflare/agentic-inbox), especially its Email Routing ingestion, attachment storage, RFC threading utilities, draft-first agent behavior, and shared tool business layer. The CRM model and cross-domain storage architecture intentionally differ.
+1. In Zero Trust → Access → Applications, create a **Self-hosted** application for the Worker's exact production hostname and an allow policy restricted to your identity. Keep the application's path broad enough to cover `/*`; do not leave another Worker custom domain or route outside Access.
+2. In `wrangler.toml`, replace `ACCESS_TEAM_DOMAIN` with the full `https://<team>.cloudflareaccess.com` URL and `ACCESS_AUD` with that Access application's audience tag. The Worker verifies the JWT signature, issuer, audience, and lifetime and fails closed when configuration is missing or invalid. The email handler is not an HTTP route and remains callable by Email Routing.
+3. Deploy only after Access is ready: `npx wrangler deploy`.
+4. In the domain's Email Routing settings, enable routing without replacing an existing mail provider unintentionally. Create an exact custom-address rule (for example `hello@example.com`) whose action sends to this Worker. The envelope recipient must exactly match a seeded `mailbox_identities.address`; unknown mailboxes are rejected and create no CRM state.
 
-No source code from `agentic-inbox` has been copied into this repository yet. If code is adapted later, the applicable Apache 2.0 attribution and modification requirements must be preserved.
+Send a plain-text test email with a small attachment from an external account. Check structured, body-free logs with `npx wrangler tail`, open the Access-protected Worker UI, and verify the inbox row, contact, text body, timestamps, and attachment metadata. Re-deliver the same message and verify it remains one message. HTML is parsed only to obtain MIME structure and is never stored/rendered as UI content; the UI displays `email.text` only.
+
+## Behavior and troubleshooting
+
+- Idempotency is mailbox + normalized Message-ID, or mailbox + SHA-256 of canonical parsed sender, recipients, Date, subject, text/HTML hashes, RFC thread headers, and attachment facts when absent. Transport-added raw headers, receive/ingest time, and randomness are excluded.
+- Threading uses only normalized `References` and `In-Reply-To`; equal subjects do not thread.
+- `sent_at`, `received_at`, and `ingested_at` are separate columns.
+- R2 writes occur before the atomic D1 metadata batch. A failed attempt can leave an unreferenced deterministic R2 object for later manual cleanup, but it never leaves successful D1 metadata; avoiding compensating deletion also prevents one concurrent duplicate from deleting another's committed attachment. Malformed MIME, missing sender, oversized mail, and unknown mailbox produce an explicit code and leave no CRM state.
+- Logs contain event names, internal IDs, counts, and errors, never a full body or raw MIME.
+
+If mail is rejected, inspect `wrangler tail` for `unknown_mailbox`, `malformed_mime`, `message_too_large`, or `attachment_storage_failed`; then verify the exact lowercase mailbox seed, routing rule, size, and R2 binding. If the UI returns 403 in production, use the Access-protected hostname and verify the Access application/policy. If tests fail before starting, verify `node --version` is 22+.
+
+## Cleanup / rollback
+
+First disable/delete the Email Routing custom-address rule, then delete the Worker and resources only after exporting anything needed:
+
+```sh
+npx wrangler delete
+npx wrangler d1 delete domain-crm
+npx wrangler r2 bucket delete domain-crm-attachments
+```
+
+Remove the Access application last. These deletion commands are destructive; there is no automated data rollback. Schema changes should instead be made by a new forward migration.
 
 ## License
 
-[Apache License 2.0](./LICENSE)
+Apache-2.0; see [LICENSE](./LICENSE).
