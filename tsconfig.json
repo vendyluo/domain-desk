@@ -1,4 +1,5 @@
 {
+  "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -9,5 +10,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts", "ambient.d.ts"]
+  "include": ["src/**/*.ts", "src/**/*.svelte", "test/**/*.ts", "vitest.config.ts", "ambient.d.ts"]
 }

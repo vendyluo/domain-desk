@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { ingestRaw } from '../src/ingest';
-import { app } from '../src/index';
+import { authorizeRequest } from '../src/auth';
 import type { Env } from '../src/types';
 
 const bytes = (s: string) => new TextEncoder().encode(s).buffer;
@@ -11,10 +11,10 @@ const count = async (table: string) => (await env.DB.prepare(`SELECT count(*) n 
 describe('inbound ingestion', () => {
   it('fails closed on the web boundary and permits only explicit local development bypass', async () => {
     const production = { ...(env as unknown as Env), LOCAL_DEV: 'false', ACCESS_TEAM_DOMAIN: 'https://team.cloudflareaccess.com', ACCESS_AUD: 'expected-audience' };
-    expect((await app.request('/', {}, production)).status).toBe(403);
-    expect((await app.request('/', { headers: { 'Cf-Access-Jwt-Assertion': 'forged' } }, production)).status).toBe(403);
+    expect(await authorizeRequest(new Request('https://crm.test'), production)).toBe(false);
+    expect(await authorizeRequest(new Request('https://crm.test', { headers: { 'Cf-Access-Jwt-Assertion': 'forged' } }), production)).toBe(false);
     const local = { ...production, LOCAL_DEV: 'true' };
-    expect((await app.request('/', {}, local)).status).toBe(200);
+    expect(await authorizeRequest(new Request('https://crm.test'), local)).toBe(true);
   });
 
   it('creates the complete graph and deduplicates Message-ID delivery', async () => {

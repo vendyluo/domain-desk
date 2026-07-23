@@ -1,6 +1,6 @@
 # Cloudflare Domain CRM
 
-A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. The Hono `fetch` handler provides a text-only inbox and conversation detail UI. Raw MIME archiving is intentionally deferred.
+A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. SvelteKit 5 provides the server-first responsive Inbox, conversation triage, and Settings UI; Bits UI supplies accessible interaction primitives and Tailwind CSS v4 implements the project-owned warm-light visual language. A thin project entrypoint combines the official adapter's `fetch` output with Email Routing's `email` handler. Raw MIME archiving is intentionally deferred.
 
 This first slice supports exactly manually configured domains, products, and mailboxes. It does **not** configure DNS, send mail, use AI, queues, Durable Objects, or act as a generic CRM.
 
@@ -41,12 +41,12 @@ The schema migration creates only the nine application tables named in `DESIGN.m
 
 ## Safe local development
 
-`npm run dev` explicitly selects Wrangler's `local` environment, where `LOCAL_DEV=true` disables the UI's Access-header guard. Local D1/R2 emulation is used; it does not touch production resources. Never set `LOCAL_DEV=true` in the top-level production vars and never publish the local environment.
+Local development requires `LOCAL_DEV=true` in a local, uncommitted environment and local D1/R2 bindings; it must not touch production resources. The Vite development command does not provision or migrate bindings. Never set `LOCAL_DEV=true` in the top-level production vars.
 
 ```sh
 npx wrangler d1 migrations apply domain-crm --local --env local
 npx wrangler d1 execute domain-crm --local --env local --command "INSERT INTO domains(id,name) VALUES('domain-main','example.test'); INSERT INTO products(id,domain_id,name) VALUES('product-main','domain-main','Test Product'); INSERT INTO mailbox_identities(id,product_id,address) VALUES('mailbox-hello','product-main','hello@example.test');"
-npm run dev
+LOCAL_DEV=true npm run dev
 ```
 
 ## Protect with Cloudflare Access, deploy, and route email

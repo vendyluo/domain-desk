@@ -1,7 +1,11 @@
 name = "cloudflare-domain-crm"
-main = "src/index.ts"
+main = "src/worker.ts"
 compatibility_date = "2026-07-23"
 compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".svelte-kit/cloudflare"
+binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"

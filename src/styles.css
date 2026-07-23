@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #f2eee5;
+  --color-canvas-deep: #e8e1d5;
+  --color-paper: #fffdf8;
+  --color-paper-soft: #f8f4ec;
+  --color-ink: #28251f;
+  --color-ink-soft: #4e4940;
+  --color-muted: #746c60;
+  --color-line: #d9d0c1;
+  --color-line-strong: #b9ae9e;
+  --color-copper: #9b452b;
+  --color-copper-dark: #78331f;
+  --color-teal: #235f59;
+  --color-teal-dark: #194943;
+  --color-sidebar: #242c29;
+  --color-sidebar-soft: #35413d;
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-reading: Georgia, Cambria, "Times New Roman", serif;
+  --shadow-drawer: 0 20px 60px rgb(22 20 16 / 0.28);
+}
+
+@layer base {
+  :root {
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    font-synthesis: none;
+  }
+
+  html {
+    min-width: 320px;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--color-canvas);
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  button,
+  select {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3,
+  p,
+  dd {
+    overflow-wrap: anywhere;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-teal);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    color: var(--color-ink);
+    background: #e8c7a7;
+  }
+
+  dialog::backdrop {
+    background: rgb(24 27 24 / 0.66);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

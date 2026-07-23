@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.svelte-kit/
+build/
 .wrangler/
 .dev.vars
 .env*

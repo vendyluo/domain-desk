@@ -6,22 +6,33 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "wrangler dev --env local",
-    "typecheck": "tsc --noEmit",
+    "dev": "vite dev",
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
-    "build": "wrangler deploy --dry-run --outdir dist --env=",
+    "build": "vite build && wrangler deploy --dry-run --outdir dist --env=",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
-    "hono": "4.12.31",
-    "jose": "6.2.4",
-    "postal-mime": "2.7.5"
+    "@sveltejs/kit": "^2.70.1",
+    "bits-ui": "^2.18.1",
+    "jose": "^6.2.4",
+    "postal-mime": "^2.7.5",
+    "svelte": "^5.56.7"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "0.18.7",
-    "@cloudflare/workers-types": "5.20260723.1",
-    "typescript": "5.9.3",
-    "vitest": "4.1.10",
-    "wrangler": "4.113.0"
+    "@cloudflare/vitest-pool-workers": "^0.18.7",
+    "@cloudflare/workers-types": "^5.20260723.1",
+    "@sveltejs/adapter-cloudflare": "^7.2.9",
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "svelte-check": "^4.7.3",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.113.0"
+  },
+  "overrides": {
+    "cookie": "0.7.2"
   }
 }

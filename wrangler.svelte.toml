@@ -1,0 +1,8 @@
+name = "cloudflare-domain-crm-web-build"
+main = ".svelte-kit/cloudflare/_worker.js"
+compatibility_date = "2026-07-23"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".svelte-kit/cloudflare"
+binding = "ASSETS"
