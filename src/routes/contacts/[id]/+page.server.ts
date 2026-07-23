@@ -1,5 +1,6 @@
 import { error, fail, redirect } from "@sveltejs/kit";
 import { createNextAction, transitionNextAction } from "$lib/server/actions";
+import { createOpportunity } from "$lib/server/opportunities";
 import {
   choosePrimaryEmail,
   getContact,
@@ -44,6 +45,22 @@ const message = (cause: unknown, fallback: string) =>
   cause instanceof Error ? cause.message : fallback;
 
 export const actions: Actions = {
+  opportunity: async ({ request, params, platform }) => {
+    const form = await request.formData();
+    try {
+      const id = await createOpportunity(platform!.env.DB, {
+        contactId: params.id,
+        conversationId: form.get("conversationId"),
+        title: form.get("title"),
+        desiredOutcome: form.get("desiredOutcome"),
+        valueMinor: form.get("valueMinor"),
+        currency: form.get("currency"),
+      });
+      redirect(303, `/opportunities/${id}`);
+    } catch (cause) {
+      return fail(400, { message: message(cause, "Invalid opportunity.") });
+    }
+  },
   create: async ({ request, params, platform }) => {
     const form = await request.formData();
     try {

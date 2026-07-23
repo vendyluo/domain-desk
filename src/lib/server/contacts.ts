@@ -86,12 +86,22 @@ export async function getContact(db: DB, id: string) {
     )
     .bind(id)
     .all();
+  const conversations = await db
+    .prepare(
+      `SELECT c.id,c.subject,p.name product,d.name domain,mi.address mailbox
+       FROM conversations c JOIN mailbox_identities mi ON mi.id=c.mailbox_identity_id
+       JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id
+       WHERE c.contact_id=? ORDER BY c.updated_at DESC,c.id`,
+    )
+    .bind(id)
+    .all();
   return {
     contact,
     addresses: addresses.results,
     messages: messages.results,
     actions: actions.results,
     events: events.results,
+    conversations: conversations.results,
   };
 }
 

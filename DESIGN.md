@@ -512,6 +512,8 @@ The current baseline commit completes the ingestion foundation and proof SSR, bu
 
 **Data/state impact:** add `opportunities`, `opportunity_contacts`, and `opportunity_conversations` for immutable evidence provenance; reuse `next_actions` and `activity_events`. State transitions are commands with validation and immutable activity records. Active state requires one designated open next action.
 
+**Implemented schema decision:** migration `0003` snapshots product, mailbox, and domain on each opportunity evidence relation, uses integer minor units paired with an uppercase three-letter currency, and extends next actions only with an opportunity relation and designated flag. Normal commands atomically maintain the active/designated-action invariant; no recovery queue is shown because the migration has no legacy opportunity rows to repair.
+
 **Verification:** tests reject invalid transitions, active-without-action, terminal-without-reason, AI/system actor terminal changes, and cross-product attribution loss. E2E starts from a real conversation and ends with a visible won/lost history; reopening creates a required next action.
 
 **Rollback boundary:** disabling the surface leaves canonical opportunity/history rows intact. Individual mistakes are corrected with recorded inverse transitions or archive, never destructive deletion.

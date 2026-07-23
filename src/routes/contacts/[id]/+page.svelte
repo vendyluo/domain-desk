@@ -65,6 +65,32 @@
       </form>
     </section>
 
+    <section class="my-8 border-t border-line pt-5">
+      <h2 class="font-reading text-2xl">Create opportunity</h2>
+      {#if data.conversations.length}
+        <p class="text-sm text-muted">Choose the inbound conversation that proves this commercial intent.</p>
+        <form method="POST" action="?/opportunity" class="mt-3 grid max-w-xl gap-3">
+          <label for="evidence">Evidence conversation</label>
+          <select id="evidence" required name="conversationId" class="rounded border border-line bg-white p-2">
+            {#each data.conversations as conversation}
+              <option value={conversation.id}>{conversation.subject || 'No subject'} · {conversation.product} · {conversation.domain} · {conversation.mailbox}</option>
+            {/each}
+          </select>
+          <label for="opportunity-title">Title</label>
+          <input id="opportunity-title" required maxlength="200" name="title" class="rounded border border-line p-2" />
+          <label for="desired-outcome">Desired outcome</label>
+          <textarea id="desired-outcome" required maxlength="500" name="desiredOutcome" class="rounded border border-line p-2"></textarea>
+          <div class="grid grid-cols-2 gap-3">
+            <label>Value in minor units (optional)<input type="number" min="0" step="1" name="valueMinor" class="w-full rounded border border-line p-2" /></label>
+            <label>Currency (with value)<input name="currency" maxlength="3" pattern="[A-Z]{3}" class="w-full rounded border border-line p-2 uppercase" /></label>
+          </div>
+          <button class="justify-self-start rounded bg-copper px-4 py-2 text-white">Create opportunity</button>
+        </form>
+      {:else}
+        <p class="text-muted">No evidence conversations exist for this contact. Receive or open a real Inbox conversation first.</p>
+      {/if}
+    </section>
+
     <section><h2 class="font-reading text-2xl">Next actions</h2>
       {#if !data.actions.length}<p class="text-muted">No next actions.</p>{/if}
       {#each data.actions as action}<div class="my-2 border-l-2 border-copper pl-3"><strong>{action.description}</strong> · {action.status}</div>{/each}

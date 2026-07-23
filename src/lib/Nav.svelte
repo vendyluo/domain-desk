@@ -23,6 +23,7 @@
           onclick={() => (open = false)}>Inbox</a
         >
         <a class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/contacts') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`} aria-current={page.url.pathname.startsWith('/contacts') ? 'page' : undefined} href="/contacts" onclick={() => (open = false)}>Contacts</a>
+        <a class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/opportunities') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`} aria-current={page.url.pathname.startsWith('/opportunities') ? 'page' : undefined} href="/opportunities" onclick={() => (open = false)}>Opportunities</a>
         <a
           class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/settings') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`}
           aria-current={page.url.pathname.startsWith('/settings') ? 'page' : undefined}

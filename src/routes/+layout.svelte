@@ -43,6 +43,7 @@
         href="/inbox">Inbox</a
       >
       <a class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/contacts') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`} aria-current={page.url.pathname.startsWith('/contacts') ? 'page' : undefined} href="/contacts">Contacts</a>
+      <a class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/opportunities') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`} aria-current={page.url.pathname.startsWith('/opportunities') ? 'page' : undefined} href="/opportunities">Opportunities</a>
       <a
         class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/settings') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`}
         aria-current={page.url.pathname.startsWith('/settings') ? 'page' : undefined}

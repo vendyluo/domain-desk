@@ -11,7 +11,13 @@ export const actions: Actions = {
         platform!.env.DB,
         String(f.get("id")),
         f.get("command"),
-        { reason: f.get("reason"), due: f.get("due") },
+        {
+          reason: f.get("reason"),
+          due: f.get("due"),
+          replacement: f.get("replacement"),
+          exit: f.get("exit"),
+          outcomeReason: f.get("outcomeReason"),
+        },
       );
       return { success: true };
     } catch (e) {

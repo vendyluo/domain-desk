@@ -1,4 +1,5 @@
 import type { Env } from "../../types";
+import { nextActionCreatedEvent } from "./opportunities";
 
 type DB = Env["DB"];
 const ACTOR = "owner";
@@ -93,6 +94,8 @@ type ActionRow = {
   contact_id: string;
   source_type: string;
   source_id: string;
+  opportunity_id: string | null;
+  is_designated: number;
 };
 type ActionCommand = "complete" | "cancel" | "reopen" | "reschedule";
 const actionCommands = new Set<ActionCommand>([
@@ -106,7 +109,7 @@ export async function transitionNextAction(
   db: DB,
   id: string,
   command: unknown,
-  input: { reason?: unknown; due?: unknown } = {},
+  input: { reason?: unknown; due?: unknown; replacement?: unknown; exit?: unknown; outcomeReason?: unknown } = {},
   now = new Date(),
 ) {
   if (
@@ -117,7 +120,7 @@ export async function transitionNextAction(
   }
   const row = await db
     .prepare(
-      "SELECT id,status,description,due_at,contact_id,source_type,source_id FROM next_actions WHERE id=?",
+      "SELECT id,status,description,due_at,contact_id,source_type,source_id,opportunity_id,is_designated FROM next_actions WHERE id=?",
     )
     .bind(id)
     .first<ActionRow>();
@@ -143,7 +146,7 @@ export async function transitionNextAction(
   if (command === "reschedule") due = parseDue(input.due);
   const prior = { status: row.status, due_at: row.due_at };
   const next = { status, due_at: due };
-  await db.batch([
+  const statements: D1PreparedStatement[] = [
     db
       .prepare(
         `UPDATE next_actions SET status=?,due_at=?,completed_at=?,completion_source=?,cancelled_at=?,cancel_reason=? WHERE id=?`,
@@ -175,14 +178,99 @@ export async function transitionNextAction(
         JSON.stringify(next),
         reason,
       ),
-  ]);
+  ];
+  if (row.opportunity_id && row.is_designated && (command === "complete" || command === "cancel")) {
+    const opportunity = await db
+      .prepare("SELECT state FROM opportunities WHERE id=?")
+      .bind(row.opportunity_id)
+      .first<{ state: string }>();
+    if (opportunity?.state === "active") {
+      if (input.replacement) {
+        const replacement = cleanText(input.replacement, "Replacement next action");
+        const replacementId = `action:${crypto.randomUUID()}`;
+        statements.unshift(
+          db.prepare("UPDATE next_actions SET is_designated=0 WHERE id=?").bind(id),
+        );
+        statements.push(
+          db.prepare(
+            `INSERT INTO next_actions
+             (id,description,status,source_type,source_id,contact_id,created_by,
+              created_at,opportunity_id,is_designated)
+             VALUES(?,?,'open','contact',?,?,'owner',?,?,1)`,
+          ).bind(
+            replacementId,
+            replacement,
+            row.contact_id,
+            row.contact_id,
+            at,
+            row.opportunity_id,
+          ),
+          nextActionCreatedEvent(
+            db,
+            replacementId,
+            row.opportunity_id,
+            row.contact_id,
+            replacement,
+            at,
+          ),
+        );
+      } else if (input.exit === "won" || input.exit === "lost") {
+        const outcomeReason = cleanText(input.outcomeReason, "Outcome reason");
+        statements.unshift(
+          db.prepare("UPDATE next_actions SET is_designated=0 WHERE id=?").bind(id),
+        );
+        statements.push(
+          db.prepare(
+            `UPDATE opportunities SET state=?,outcome_reason=?,outcome_at=?,updated_at=?
+             WHERE id=? AND state='active'`,
+          ).bind(input.exit, outcomeReason, at, at, row.opportunity_id),
+          db.prepare(
+            `INSERT INTO activity_events
+             (id,event_type,actor,occurred_at,subject_type,subject_id,contact_id,
+              source_type,source_id,prior_state_json,new_state_json,reason)
+             VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ).bind(
+            `event:${crypto.randomUUID()}`,
+            `opportunity.${input.exit}`,
+            ACTOR,
+            at,
+            "opportunity",
+            row.opportunity_id,
+            row.contact_id,
+            "opportunity",
+            row.opportunity_id,
+            JSON.stringify({ state: "active" }),
+            JSON.stringify({ state: input.exit }),
+            outcomeReason,
+          ),
+        );
+      } else {
+        throw new Error("A designated action requires a replacement or a won/lost outcome.");
+      }
+    }
+  }
+  await db.batch(statements);
 }
 export async function listToday(db: DB, now = new Date()) {
   const today = iso(now).slice(0, 10),
     boundary = `${today}T23:59:59.999Z`;
   const actions = await db
     .prepare(
-      `SELECT na.*,ct.display_name,ce.address contact_email,c.subject,mi.address mailbox,p.name product,d.name domain FROM next_actions na JOIN contacts ct ON ct.id=na.contact_id JOIN contact_email_addresses ce ON ce.id=ct.primary_email_id LEFT JOIN conversations c ON na.source_type='conversation' AND c.id=na.source_id LEFT JOIN mailbox_identities mi ON mi.id=c.mailbox_identity_id LEFT JOIN products p ON p.id=mi.product_id LEFT JOIN domains d ON d.id=p.domain_id WHERE na.status='open' AND na.due_at<=? ORDER BY na.due_at,na.id`,
+      `SELECT na.*,ct.display_name,ce.address contact_email,c.subject,
+        coalesce(p.name,op.name) product,coalesce(d.name,od.name) domain,
+        coalesce(mi.address,omi.address) mailbox,o.title opportunity_title
+       FROM next_actions na
+       JOIN contacts ct ON ct.id=na.contact_id
+       JOIN contact_email_addresses ce ON ce.id=ct.primary_email_id
+       LEFT JOIN conversations c ON na.source_type='conversation' AND c.id=na.source_id
+       LEFT JOIN mailbox_identities mi ON mi.id=c.mailbox_identity_id
+       LEFT JOIN products p ON p.id=mi.product_id LEFT JOIN domains d ON d.id=p.domain_id
+       LEFT JOIN opportunities o ON o.id=na.opportunity_id
+       LEFT JOIN products op ON op.id=o.product_id LEFT JOIN domains od ON od.id=op.domain_id
+       LEFT JOIN opportunity_conversations oc ON oc.opportunity_id=o.id
+       LEFT JOIN mailbox_identities omi ON omi.id=oc.mailbox_identity_id
+       WHERE na.status='open' AND (na.due_at<=? OR (na.opportunity_id IS NOT NULL AND na.is_designated=1))
+       GROUP BY na.id ORDER BY na.due_at,na.id`,
     )
     .bind(boundary)
     .all<Record<string, unknown>>();
@@ -193,9 +281,11 @@ export async function listToday(db: DB, now = new Date()) {
     .all<Record<string, unknown>>();
   return {
     overdue: actions.results.filter(
-      (x) => String(x.due_at).slice(0, 10) < today,
+      (x) => x.due_at && String(x.due_at).slice(0, 10) < today,
     ),
-    due: actions.results.filter((x) => String(x.due_at).slice(0, 10) === today),
+    due: actions.results.filter(
+      (x) => !x.due_at || String(x.due_at).slice(0, 10) === today,
+    ),
     inbound: inbound.results,
     today,
   };

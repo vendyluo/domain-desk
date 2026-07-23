@@ -97,4 +97,5 @@
       </dl>
     </aside>
   </div>
+  <section class="mt-8 border-t border-line pt-5"><h2 class="font-reading text-2xl">Create opportunity from this evidence</h2><form method="POST" action="?/opportunity" class="mt-3 grid gap-2"><label>Title <input required maxlength="200" name="title" class="w-full rounded border border-line p-2" /></label><label>Desired outcome <textarea required name="desiredOutcome" class="w-full rounded border border-line p-2"></textarea></label><div class="flex gap-2"><label>Value (minor units) <input type="number" min="0" name="valueMinor" class="rounded border p-2" /></label><label>Currency <input maxlength="3" name="currency" class="w-24 rounded border p-2 uppercase" /></label></div><button class="justify-self-start rounded bg-copper px-4 py-2 text-white">Create as new</button></form></section>
 </article>

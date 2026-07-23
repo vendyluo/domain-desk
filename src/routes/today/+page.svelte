@@ -46,7 +46,29 @@
                 </p>
                 <time class="text-xs text-muted">{formatTime(item.due_at || item.updated_at)}</time>
 
-                {#if item.description}
+                {#if item.description && item.opportunity_id && item.is_designated}
+                  <p class="mt-2 text-sm">Designated action for <a class="underline" href={'/opportunities/' + item.opportunity_id}>{item.opportunity_title}</a>. Complete or cancel it together with its replacement or outcome.</p>
+                  <div class="mt-3 grid gap-3 min-[700px]:grid-cols-2">
+                    <form class="grid gap-2" method="POST" action="?/action">
+                      <input type="hidden" name="id" value={item.id} />
+                      <label>Replacement action<input required name="replacement" class="w-full rounded border border-line px-2 py-1" /></label>
+                      <button name="command" value="complete" class="justify-self-start rounded bg-teal px-3 py-2 text-xs font-bold text-white">Complete and replace</button>
+                    </form>
+                    <form class="grid gap-2" method="POST" action="?/action">
+                      <input type="hidden" name="id" value={item.id} />
+                      <label>Replacement action<input required name="replacement" class="w-full rounded border border-line px-2 py-1" /></label>
+                      <label>Cancellation reason<input required name="reason" class="w-full rounded border border-line px-2 py-1" /></label>
+                      <button name="command" value="cancel" class="justify-self-start rounded border border-line px-3 py-2 text-xs">Cancel and replace</button>
+                    </form>
+                    <form class="grid gap-2" method="POST" action="?/action">
+                      <input type="hidden" name="id" value={item.id} />
+                      <label>Outcome reason<textarea required name="outcomeReason" class="w-full rounded border border-line px-2 py-1"></textarea></label>
+                      <div><button name="exit" value="won" class="rounded bg-copper px-3 py-2 text-xs text-white">Complete as won</button></div>
+                      <input type="hidden" name="command" value="complete" />
+                      <button name="exit" value="lost" class="justify-self-start rounded border border-line px-3 py-2 text-xs">Complete as lost</button>
+                    </form>
+                  </div>
+                {:else if item.description}
                   <div class="mt-3 flex flex-wrap gap-2">
                     <form method="POST" action="?/action">
                       <input type="hidden" name="id" value={item.id} />

@@ -2,12 +2,16 @@ import { env } from "cloudflare:workers";
 import { beforeEach } from "vitest";
 import migration from "../migrations/0001_initial.sql?raw";
 import slice3a from "../migrations/0002_slice_3a.sql?raw";
+import slice3b from "../migrations/0003_opportunities.sql?raw";
 
 beforeEach(async () => {
   for (const table of [
     "contact_merges",
+    "opportunity_conversations",
+    "opportunity_contacts",
     "activity_events",
     "next_actions",
+    "opportunities",
     "attachments",
     "message_recipients",
     "messages",
@@ -19,7 +23,7 @@ beforeEach(async () => {
     "domains",
   ])
     await env.DB.prepare(`DROP TABLE IF EXISTS ${table}`).run();
-  for (const sql of [migration, slice3a])
+  for (const sql of [migration, slice3a, slice3b])
     for (const statement of sql
       .split(";")
       .map((s) => s.trim())
