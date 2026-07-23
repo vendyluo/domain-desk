@@ -15,6 +15,8 @@ npm install
 npm run check                 # typecheck, Worker-runtime tests, dry-run bundle
 ```
 
+Apply both D1 migrations in order for the local Slice 3A Today, Contacts, next-action, and activity-history loop. Date/time form values are interpreted as UTC.
+
 ## Create and configure production resources
 
 Do not deploy before completing the Access steps below.
@@ -37,7 +39,7 @@ Manually seed the one initial context, replacing all sample values. IDs are stab
 npx wrangler d1 execute domain-crm --remote --command "INSERT INTO domains(id,name) VALUES('domain-main','example.com'); INSERT INTO products(id,domain_id,name) VALUES('product-main','domain-main','Example Product'); INSERT INTO mailbox_identities(id,product_id,address,display_name) VALUES('mailbox-hello','product-main','hello@example.com','Hello');"
 ```
 
-The schema migration creates only the nine application tables named in `DESIGN.md` slice scope (plus Wrangler's migration metadata when migrations are applied).
+The initial migration creates the nine ingestion tables; Slice 3A adds `next_actions`, `activity_events`, and reversible `contact_merges` history (plus Wrangler's migration metadata when migrations are applied).
 
 ## Safe local development
 

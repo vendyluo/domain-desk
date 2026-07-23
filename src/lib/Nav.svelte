@@ -15,12 +15,14 @@
       <Dialog.Title class="font-reading text-2xl font-semibold">Domain CRM</Dialog.Title>
       <Dialog.Description class="mt-1 text-sm text-muted">Daily inbound operations</Dialog.Description>
       <nav class="mt-8 grid gap-1" aria-label="Mobile navigation">
+        <a class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/today') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`} aria-current={page.url.pathname.startsWith('/today') ? 'page' : undefined} href="/today" onclick={() => (open = false)}>Today</a>
         <a
           class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/inbox') || page.url.pathname.startsWith('/conversations') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`}
           aria-current={page.url.pathname.startsWith('/inbox') || page.url.pathname.startsWith('/conversations') ? 'page' : undefined}
           href="/inbox"
           onclick={() => (open = false)}>Inbox</a
         >
+        <a class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/contacts') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`} aria-current={page.url.pathname.startsWith('/contacts') ? 'page' : undefined} href="/contacts" onclick={() => (open = false)}>Contacts</a>
         <a
           class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/settings') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`}
           aria-current={page.url.pathname.startsWith('/settings') ? 'page' : undefined}

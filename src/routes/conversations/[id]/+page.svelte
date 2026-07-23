@@ -30,6 +30,7 @@
       </form>
     </div>
     {#if form?.message}<p class="mt-3 text-sm font-semibold text-[#8e2f24]" role="alert">{form.message}</p>{/if}
+    <form method="POST" action="?/action" class="mt-4 flex flex-wrap gap-2"><input required maxlength="500" name="description" placeholder="Next action" class="rounded border border-line px-3 py-2 text-sm"><input aria-label="Due time UTC" type="datetime-local" name="due" class="rounded border border-line px-3 py-2 text-sm"><button class="rounded border border-teal px-3 py-2 text-sm font-semibold text-teal">Add next action</button></form>
   </header>
 
   <div class="mx-auto max-w-[1120px] min-[920px]:grid min-[920px]:grid-cols-[minmax(0,1fr)_270px]">

@@ -272,6 +272,7 @@ products
 mailbox_identities
 contacts
 contact_email_addresses
+contact_merges
 conversations
 conversation_participants
 messages
@@ -307,6 +308,7 @@ Additional product-state invariants:
 10. An active opportunity has exactly one designated open current next action. Completing/cancelling it atomically designates a replacement or exits active state. Won/lost transitions require outcome evidence; AI cannot perform them.
 11. Important mutations—contact merge, opportunity terminal state, DNS/routing plan approval, rollback, and outbound send approval—record actor, prior state, desired state, outcome, and time.
 12. No schema is pre-created merely for a future slice. Each migration arrives with the first user-observable behavior that uses its state.
+13. A contact's primary email is an explicit canonical relation. Merges retain the duplicate contact as a hidden alias, move CRM relations without rewriting message mailbox/product/domain attribution, and store the exact moved relation IDs and prior identities needed by a future explicit inverse command.
 
 ## 8. Runtime and UI architecture
 

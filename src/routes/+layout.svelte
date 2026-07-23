@@ -31,16 +31,18 @@
 
 <div class="min-h-screen min-[1120px]:grid min-[1120px]:grid-cols-[220px_minmax(0,1fr)]">
   <aside class="sticky top-0 hidden h-screen flex-col bg-sidebar px-4 py-6 text-paper min-[1120px]:flex">
-    <a class="font-bold tracking-[0.01em] no-underline" href="/inbox">
+    <a class="font-bold tracking-[0.01em] no-underline" href="/today">
       Domain CRM
       <small class="mt-1 block text-[0.72rem] font-normal text-[#bbbdb6]">Inbound operations desk</small>
     </a>
     <nav class="mt-8 grid gap-1" aria-label="Primary">
+      <a class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/today') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`} aria-current={page.url.pathname.startsWith('/today') ? 'page' : undefined} href="/today">Today</a>
       <a
         class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/inbox') || page.url.pathname.startsWith('/conversations') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`}
         aria-current={page.url.pathname.startsWith('/inbox') || page.url.pathname.startsWith('/conversations') ? 'page' : undefined}
         href="/inbox">Inbox</a
       >
+      <a class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/contacts') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`} aria-current={page.url.pathname.startsWith('/contacts') ? 'page' : undefined} href="/contacts">Contacts</a>
       <a
         class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/settings') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`}
         aria-current={page.url.pathname.startsWith('/settings') ? 'page' : undefined}
