@@ -8,7 +8,13 @@ export async function authorizeRequest(request: Request, env: Env, verify: Verif
   if (env.LOCAL_DEV === 'true') return true;
   const assertion = request.headers.get('Cf-Access-Jwt-Assertion');
   const issuer = env.ACCESS_TEAM_DOMAIN?.replace(/\/$/, '');
-  if (!assertion || !issuer?.startsWith('https://') || !env.ACCESS_AUD || env.ACCESS_AUD === 'replace-with-access-application-aud') return false;
+  if (
+    !assertion ||
+    !issuer?.startsWith('https://') ||
+    !env.ACCESS_AUD ||
+    env.ACCESS_AUD === 'replace-with-access-application-aud'
+  )
+    return false;
   try {
     let keys = keysets.get(issuer);
     if (!keys) {

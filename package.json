@@ -7,10 +7,17 @@
   },
   "scripts": {
     "dev": "vite dev",
+    "build:web": "vite build",
+    "e2e:serve": "npm run build:web && node scripts/e2e-prepare.mjs && wrangler dev --env local --local --persist-to .wrangler/e2e --port 4173 --show-interactive-dev-session=false",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "backup": "node scripts/backup.mjs",
     "build": "vite build && wrangler deploy --dry-run --outdir dist --env=",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@sveltejs/kit": "^2.70.1",
@@ -20,17 +27,26 @@
     "svelte": "^5.56.7"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.18.7",
-    "@cloudflare/workers-types": "^5.20260723.1",
+    "@axe-core/playwright": "^4.13.0",
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260826.1",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
     "@sveltejs/adapter-cloudflare": "^7.2.9",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@tailwindcss/vite": "^4.3.3",
+    "eslint": "^10.9.1",
+    "eslint-plugin-svelte": "^3.23.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "prettier-plugin-svelte": "^4.1.1",
     "svelte-check": "^4.7.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.68.0",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
-    "wrangler": "^4.113.0"
+    "wrangler": "^4.126.0"
   },
   "overrides": {
     "cookie": "0.7.2"

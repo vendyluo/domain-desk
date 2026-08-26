@@ -7,5 +7,10 @@ export interface Env {
 }
 
 export class IngestError extends Error {
-  constructor(public readonly code: string, message: string) { super(message); }
+  constructor(
+    public readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
 }

@@ -10,6 +10,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 export const handleError: HandleServerError = ({ error }) => {
   const requestId = crypto.randomUUID();
-  console.error(JSON.stringify({ event: 'web_request_failed', request_id: requestId, error: error instanceof Error ? error.message : 'unknown' }));
+  console.error(
+    JSON.stringify({
+      event: 'web_request_failed',
+      request_id: requestId,
+      error: error instanceof Error ? error.message : 'unknown'
+    })
+  );
   return { message: 'The request could not be completed.', requestId };
 };

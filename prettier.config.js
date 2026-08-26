@@ -1,0 +1,7 @@
+export default {
+  plugins: ['prettier-plugin-svelte'],
+  singleQuote: true,
+  trailingComma: 'none',
+  printWidth: 120,
+  overrides: [{ files: '*.svelte', options: { parser: 'svelte' } }]
+};

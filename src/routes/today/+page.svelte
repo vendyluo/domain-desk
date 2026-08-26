@@ -39,50 +39,123 @@
                     ? item.source_type === 'conversation'
                       ? `/conversations/${item.source_id}`
                       : `/contacts/${item.contact_id}`
-                    : `/conversations/${item.id}`}
-                >{item.description || item.subject || 'No subject'}</a>
+                    : `/conversations/${item.id}`}>{item.description || item.subject || 'No subject'}</a
+                >
                 <p class="mt-1 text-xs text-teal">
-                  {item.product ? [item.product, item.domain, item.mailbox].join(' · ') : item.display_name || item.contact_email}
+                  {item.product
+                    ? [item.product, item.domain, item.mailbox].join(' · ')
+                    : item.display_name || item.contact_email}
                 </p>
-                <time class="text-xs text-muted">{formatTime(item.due_at || item.updated_at)}</time>
+                {#if item.due_at || item.updated_at}
+                  <time class="text-xs text-muted" datetime={String(item.due_at || item.updated_at)}
+                    >{formatTime(item.due_at || item.updated_at)}</time
+                  >
+                {:else}
+                  <span class="text-xs text-muted">No due date</span>
+                {/if}
 
                 {#if item.description && item.opportunity_id && item.is_designated}
-                  <p class="mt-2 text-sm">Designated action for <a class="underline" href={'/opportunities/' + item.opportunity_id}>{item.opportunity_title}</a>. Complete or cancel it together with its replacement or outcome.</p>
+                  <p class="mt-2 text-sm">
+                    Designated action for <a class="underline" href={'/opportunities/' + item.opportunity_id}
+                      >{item.opportunity_title}</a
+                    >. Complete or cancel it together with its replacement or outcome.
+                  </p>
                   <div class="mt-3 grid gap-3 min-[700px]:grid-cols-2">
                     <form class="grid gap-2" method="POST" action="?/action">
                       <input type="hidden" name="id" value={item.id} />
-                      <label>Replacement action<input required name="replacement" class="w-full rounded border border-line px-2 py-1" /></label>
-                      <button name="command" value="complete" class="justify-self-start rounded bg-teal px-3 py-2 text-xs font-bold text-white">Complete and replace</button>
+                      <label
+                        >Replacement action<input
+                          required
+                          name="replacement"
+                          class="w-full rounded border border-line px-2 py-1"
+                        /></label
+                      >
+                      <button
+                        name="command"
+                        value="complete"
+                        class="justify-self-start rounded bg-teal px-3 py-2 text-xs font-bold text-white"
+                        >Complete and replace</button
+                      >
                     </form>
                     <form class="grid gap-2" method="POST" action="?/action">
                       <input type="hidden" name="id" value={item.id} />
-                      <label>Replacement action<input required name="replacement" class="w-full rounded border border-line px-2 py-1" /></label>
-                      <label>Cancellation reason<input required name="reason" class="w-full rounded border border-line px-2 py-1" /></label>
-                      <button name="command" value="cancel" class="justify-self-start rounded border border-line px-3 py-2 text-xs">Cancel and replace</button>
+                      <label
+                        >Replacement action<input
+                          required
+                          name="replacement"
+                          class="w-full rounded border border-line px-2 py-1"
+                        /></label
+                      >
+                      <label
+                        >Cancellation reason<input
+                          required
+                          name="reason"
+                          class="w-full rounded border border-line px-2 py-1"
+                        /></label
+                      >
+                      <button
+                        name="command"
+                        value="cancel"
+                        class="justify-self-start rounded border border-line px-3 py-2 text-xs"
+                        >Cancel and replace</button
+                      >
                     </form>
                     <form class="grid gap-2" method="POST" action="?/action">
                       <input type="hidden" name="id" value={item.id} />
-                      <label>Outcome reason<textarea required name="outcomeReason" class="w-full rounded border border-line px-2 py-1"></textarea></label>
-                      <div><button name="exit" value="won" class="rounded bg-copper px-3 py-2 text-xs text-white">Complete as won</button></div>
+                      <label
+                        >Outcome reason<textarea
+                          required
+                          name="outcomeReason"
+                          class="w-full rounded border border-line px-2 py-1"></textarea></label
+                      >
+                      <div>
+                        <button name="exit" value="won" class="rounded bg-copper px-3 py-2 text-xs text-white"
+                          >Complete as won</button
+                        >
+                      </div>
                       <input type="hidden" name="command" value="complete" />
-                      <button name="exit" value="lost" class="justify-self-start rounded border border-line px-3 py-2 text-xs">Complete as lost</button>
+                      <button
+                        name="exit"
+                        value="lost"
+                        class="justify-self-start rounded border border-line px-3 py-2 text-xs">Complete as lost</button
+                      >
                     </form>
                   </div>
                 {:else if item.description}
                   <div class="mt-3 flex flex-wrap gap-2">
                     <form method="POST" action="?/action">
                       <input type="hidden" name="id" value={item.id} />
-                      <button name="command" value="complete" class="rounded bg-teal px-3 py-2 text-xs font-bold text-white">Complete</button>
+                      <button
+                        name="command"
+                        value="complete"
+                        class="rounded bg-teal px-3 py-2 text-xs font-bold text-white">Complete</button
+                      >
                     </form>
                     <form class="flex flex-wrap gap-2" method="POST" action="?/action">
                       <input type="hidden" name="id" value={item.id} />
-                      <input required aria-label="New due time UTC" type="datetime-local" name="due" class="rounded border border-line px-2 text-xs" />
-                      <button name="command" value="reschedule" class="rounded border border-line px-3 py-2 text-xs">Reschedule</button>
+                      <input
+                        required
+                        aria-label="New due time UTC"
+                        type="datetime-local"
+                        name="due"
+                        class="rounded border border-line px-2 text-xs"
+                      />
+                      <button name="command" value="reschedule" class="rounded border border-line px-3 py-2 text-xs"
+                        >Reschedule</button
+                      >
                     </form>
                     <form class="flex flex-wrap gap-2" method="POST" action="?/action">
                       <input type="hidden" name="id" value={item.id} />
-                      <input required name="reason" aria-label="Cancellation reason" placeholder="Cancellation reason" class="rounded border border-line px-2 text-xs" />
-                      <button name="command" value="cancel" class="rounded border border-line px-3 py-2 text-xs">Cancel</button>
+                      <input
+                        required
+                        name="reason"
+                        aria-label="Cancellation reason"
+                        placeholder="Cancellation reason"
+                        class="rounded border border-line px-2 text-xs"
+                      />
+                      <button name="command" value="cancel" class="rounded border border-line px-3 py-2 text-xs"
+                        >Cancel</button
+                      >
                     </form>
                   </div>
                 {/if}

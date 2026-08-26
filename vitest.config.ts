@@ -4,6 +4,7 @@ import { cloudflareTest } from '@cloudflare/vitest-pool-workers';
 export default defineConfig({
   plugins: [cloudflareTest({ wrangler: { configPath: './wrangler.toml' } })],
   test: {
-    setupFiles: ['./test/setup.ts']
+    setupFiles: ['./test/setup.ts'],
+    exclude: ['test/e2e/**', 'node_modules/**']
   }
 });

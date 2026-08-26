@@ -1,0 +1,9 @@
+.git
+.amp
+.svelte-kit
+.wrangler
+dist
+node_modules
+playwright-report
+test-results
+package-lock.json

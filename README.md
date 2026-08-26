@@ -1,8 +1,8 @@
 # Cloudflare Domain CRM
 
-A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. SvelteKit 5 provides the server-first responsive Inbox, conversation triage, and Settings UI; Bits UI supplies accessible interaction primitives and Tailwind CSS v4 implements the project-owned warm-light visual language. A thin project entrypoint combines the official adapter's `fetch` output with Email Routing's `email` handler. Raw MIME archiving is intentionally deferred.
+A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. SvelteKit 5 provides the server-first responsive Today, Inbox, Contacts, Opportunities, and Settings UI. A thin project entrypoint combines the official adapter's `fetch` output with Email Routing's `email` handler. Raw MIME archiving is intentionally deferred.
 
-This first slice supports exactly manually configured domains, products, and mailboxes. It does **not** configure DNS, send mail, use AI, queues, Durable Objects, or act as a generic CRM.
+Version 1 supports exactly manually configured domains, products, and mailboxes. It does **not** configure DNS or Email Routing, send mail, use AI, embed in another product, use queues or Durable Objects, or act as a generic workflow/CRM platform. Outbound replies require a later explicit provider and lifecycle decision.
 
 ## Prerequisites and install
 
@@ -33,10 +33,13 @@ npm run build                              # validates/bundles; never deploys
 npx wrangler d1 migrations apply domain-crm --remote
 ```
 
-Manually seed the one initial context, replacing all sample values. IDs are stable labels you choose:
+Manually seed the one initial context. Copy [`setup/one-domain.sql.example`](./setup/one-domain.sql.example) outside the repository, replace every sample value, and review the resulting file. IDs are stable labels you choose; use a lowercase exact mailbox address. The transaction uses plain `INSERT` statements so any conflicting ID, domain, or mailbox fails instead of overwriting existing CRM data.
 
 ```sh
-npx wrangler d1 execute domain-crm --remote --command "INSERT INTO domains(id,name) VALUES('domain-main','example.com'); INSERT INTO products(id,domain_id,name) VALUES('product-main','domain-main','Example Product'); INSERT INTO mailbox_identities(id,product_id,address,display_name) VALUES('mailbox-hello','product-main','hello@example.com','Hello');"
+cp setup/one-domain.sql.example /tmp/domain-crm-one-domain.sql
+# Edit and review /tmp/domain-crm-one-domain.sql, then explicitly apply it:
+npx wrangler d1 execute domain-crm --remote --file /tmp/domain-crm-one-domain.sql
+npx wrangler d1 execute domain-crm --remote --command "SELECT d.name domain,p.name product,mi.address mailbox FROM mailbox_identities mi JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id ORDER BY mi.address"
 ```
 
 The initial migration creates the nine ingestion tables; Slice 3A adds `next_actions`, `activity_events`, and reversible `contact_merges` history. Slice 3B adds `opportunities`, `opportunity_contacts`, and `opportunity_conversations`, plus the designated-action relation and opportunity activity subject needed by that surface.
@@ -56,9 +59,23 @@ LOCAL_DEV=true npm run dev
 1. In Zero Trust → Access → Applications, create a **Self-hosted** application for the Worker's exact production hostname and an allow policy restricted to your identity. Keep the application's path broad enough to cover `/*`; do not leave another Worker custom domain or route outside Access.
 2. In `wrangler.toml`, replace `ACCESS_TEAM_DOMAIN` with the full `https://<team>.cloudflareaccess.com` URL and `ACCESS_AUD` with that Access application's audience tag. The Worker verifies the JWT signature, issuer, audience, and lifetime and fails closed when configuration is missing or invalid. The email handler is not an HTTP route and remains callable by Email Routing.
 3. Deploy only after Access is ready: `npx wrangler deploy`.
-4. In the domain's Email Routing settings, enable routing without replacing an existing mail provider unintentionally. Create an exact custom-address rule (for example `hello@example.com`) whose action sends to this Worker. The envelope recipient must exactly match a seeded `mailbox_identities.address`; unknown mailboxes are rejected and create no CRM state.
+4. Before changing Email Routing, inspect the domain's current DNS and routing configuration in Cloudflare. If any non-Cloudflare/third-party MX records exist, stop: v1 has no installer or migration planner and must not replace that mail provider. For an eligible domain, enable Email Routing manually and create one exact custom-address rule (for example `hello@example.com`) whose action sends to this Worker. Do not use catch-all for initial verification. The envelope recipient must exactly match a seeded `mailbox_identities.address`; unknown mailboxes are rejected and create no CRM state.
 
 Send a plain-text test email with a small attachment from an external account. Check structured, body-free logs with `npx wrangler tail`, open the Access-protected Worker UI, and verify the inbox row, contact, text body, timestamps, attachment metadata, and authorized download. Downloads resolve the D1 relation before reading R2, force a safe content disposition, and fail explicitly when the referenced binary is missing or inconsistent. Re-deliver the same message and verify it remains one message. HTML is parsed only to obtain MIME structure and is never stored/rendered as UI content; the UI displays `email.text` only.
+
+Settings performs read-only probes of the D1 schema, all three migration-owned table groups, the R2 binding, and the configured Access mode. It displays status only, never issuer, audience, credentials, or other secret values.
+
+## Verified backup and recovery boundary
+
+Create a new backup directory from either local or remote resources. The command is read-only: it exports the complete D1 schema/data, queries canonical attachment references, downloads exactly those R2 objects, verifies D1 size and SHA-256 metadata, and writes `manifest.json`. It refuses an ambiguous source, an existing destination, unsafe object paths, missing objects, and hash/size drift. Unreferenced R2 objects are intentionally excluded.
+
+```sh
+npm run backup -- --local --output /safe/path/domain-crm-local-2026-08-26
+# Remote is an explicit separate choice and uses the configured Wrangler identity:
+npm run backup -- --remote --output /safe/path/domain-crm-production-2026-08-26
+```
+
+Treat a backup as complete only when the command prints `Verified backup created`. Protect the directory like mailbox data. Recovery is deliberately operator-run: create fresh D1/R2 resources, inspect `manifest.json`, import `database.sql`, upload each listed `backup_path` to its exact `object_key`, then run the Settings probes and download representative attachments before changing routing. This v1 command does not delete, retain credentials, schedule backups, upload backups, or mutate the source resources.
 
 ## Behavior and troubleshooting
 
@@ -72,7 +89,7 @@ If mail is rejected, inspect `wrangler tail` for `unknown_mailbox`, `malformed_m
 
 ## Cleanup / rollback
 
-First disable/delete the Email Routing custom-address rule, then delete the Worker and resources only after exporting anything needed:
+First disable/delete the exact Email Routing custom-address rule. Run and verify the backup command above, then delete the Worker and resources only after separately confirming that the backup is readable:
 
 ```sh
 npx wrangler delete

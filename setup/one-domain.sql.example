@@ -1,0 +1,16 @@
+-- Copy this file outside the repository, replace every example value, and review it
+-- before passing it to `wrangler d1 execute`. Plain INSERT statements deliberately
+-- fail on conflicting IDs, domains, or mailbox addresses; this never overwrites data.
+PRAGMA foreign_keys = ON;
+BEGIN TRANSACTION;
+
+INSERT INTO domains(id, name)
+VALUES ('domain-main', 'example.com');
+
+INSERT INTO products(id, domain_id, name)
+VALUES ('product-main', 'domain-main', 'Example Product');
+
+INSERT INTO mailbox_identities(id, product_id, address, display_name)
+VALUES ('mailbox-hello', 'product-main', 'hello@example.com', 'Product inquiries');
+
+COMMIT;
