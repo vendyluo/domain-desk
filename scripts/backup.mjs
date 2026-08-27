@@ -45,7 +45,7 @@ try {
   await run([
     'd1',
     'export',
-    'domain-crm',
+    'domain-desk',
     modeFlag,
     '--output',
     resolve(staging, 'database.sql'),
@@ -55,7 +55,7 @@ try {
     [
       'd1',
       'execute',
-      'domain-crm',
+      'domain-desk',
       modeFlag,
       '--command',
       'SELECT id,object_key,size,content_hash FROM attachments ORDER BY id',
@@ -69,7 +69,7 @@ try {
   for (const row of rows) {
     const file = destinationFor(String(row.object_key));
     await mkdir(dirname(file), { recursive: true });
-    await run(['r2', 'object', 'get', `domain-crm-attachments/${row.object_key}`, modeFlag, '--file', file]);
+    await run(['r2', 'object', 'get', `domain-desk-attachments/${row.object_key}`, modeFlag, '--file', file]);
     const bytes = await readFile(file);
     const contentHash = createHash('sha256').update(bytes).digest('hex');
     if (bytes.byteLength !== Number(row.size) || contentHash !== row.content_hash) {

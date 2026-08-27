@@ -17,7 +17,7 @@
     <Dialog.Content
       class="fixed inset-y-0 left-0 z-50 w-[min(85vw,320px)] border-0 bg-paper p-6 text-ink shadow-drawer"
     >
-      <Dialog.Title class="font-reading text-2xl font-semibold">Domain CRM</Dialog.Title>
+      <Dialog.Title class="font-reading text-2xl font-semibold">Domain Desk</Dialog.Title>
       <Dialog.Description class="mt-1 text-sm text-muted">Daily inbound operations</Dialog.Description>
       <nav class="mt-8 grid gap-1" aria-label="Mobile navigation">
         <a

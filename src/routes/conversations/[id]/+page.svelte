@@ -10,7 +10,7 @@
   const files = (id: string) => data.attachments.filter((attachment: any) => attachment.message_id === id);
 </script>
 
-<svelte:head><title>{conversation.subject || 'No subject'} · Domain CRM</title></svelte:head>
+<svelte:head><title>{conversation.subject || 'No subject'} · Domain Desk</title></svelte:head>
 
 <article class="col-span-full min-h-[calc(100vh-56px)] overflow-auto bg-paper min-[1120px]:min-h-0">
   <header class="border-b border-line px-4 py-5 min-[720px]:px-6">

@@ -2,7 +2,7 @@
   import { page } from '$app/state';
 </script>
 
-<svelte:head><title>{page.status === 404 ? 'Not found' : 'Application error'} · Domain CRM</title></svelte:head>
+<svelte:head><title>{page.status === 404 ? 'Not found' : 'Application error'} · Domain Desk</title></svelte:head>
 
 <section class="col-span-full mx-auto w-full max-w-2xl px-6 py-16 min-[720px]:py-24">
   <p class="mb-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-copper uppercase">Error {page.status}</p>

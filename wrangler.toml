@@ -1,4 +1,4 @@
-name = "cloudflare-domain-crm"
+name = "domain-desk"
 main = "src/worker.ts"
 compatibility_date = "2026-07-23"
 compatibility_flags = ["nodejs_compat"]
@@ -9,13 +9,13 @@ binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "domain-crm"
+database_name = "domain-desk"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
 binding = "ATTACHMENTS"
-bucket_name = "domain-crm-attachments"
+bucket_name = "domain-desk-attachments"
 
 [vars]
 LOCAL_DEV = "false"
@@ -29,10 +29,10 @@ ACCESS_AUD = "local-development-only"
 
 [[env.local.d1_databases]]
 binding = "DB"
-database_name = "domain-crm"
+database_name = "domain-desk"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
 [[env.local.r2_buckets]]
 binding = "ATTACHMENTS"
-bucket_name = "domain-crm-attachments"
+bucket_name = "domain-desk-attachments"

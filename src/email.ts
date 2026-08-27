@@ -12,7 +12,7 @@ export async function handleEmail(message: ForwardableEmailMessage, env: Env): P
     const code = error instanceof IngestError ? error.code : 'unexpected';
     console.error(JSON.stringify({ event: 'email_ingestion_failed', code }));
     if (error instanceof IngestError && ['unknown_mailbox', 'malformed_mime', 'message_too_large'].includes(code)) {
-      message.setReject(`Domain CRM rejected this message: ${code}`);
+      message.setReject(`Domain Desk rejected this message: ${code}`);
       return;
     }
     throw error;

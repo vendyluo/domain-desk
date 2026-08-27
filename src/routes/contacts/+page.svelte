@@ -2,7 +2,7 @@
   let { data } = $props();
 </script>
 
-<svelte:head><title>Contacts · Domain CRM</title></svelte:head>
+<svelte:head><title>Contacts · Domain Desk</title></svelte:head>
 
 <article class="col-span-full overflow-auto px-5 py-8 min-[720px]:px-10">
   <div class="mx-auto max-w-4xl">

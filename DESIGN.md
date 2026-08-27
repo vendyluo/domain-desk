@@ -2,7 +2,7 @@
 
 ## 1. Product definition
 
-Cloudflare Domain CRM is a personal-first, self-hosted CRM for people who operate many domains and product experiments in one or more Cloudflare accounts.
+Domain Desk is a personal-first, self-hosted CRM for people who operate many domains and product experiments in one or more Cloudflare accounts.
 
 The product begins with the domain portfolio rather than a manually maintained sales database:
 

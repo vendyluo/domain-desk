@@ -6,7 +6,7 @@
   const hasFilters = $derived(Object.values(data.filters).some(Boolean));
 </script>
 
-<svelte:head><title>Inbox · Domain CRM</title></svelte:head>
+<svelte:head><title>Inbox · Domain Desk</title></svelte:head>
 
 <section class="overflow-auto border-line bg-paper min-[720px]:border-r">
   <header class="flex items-start justify-between border-b border-line px-4 py-5 min-[720px]:px-6">

@@ -32,7 +32,7 @@
 <div class="min-h-screen min-[1120px]:grid min-[1120px]:grid-cols-[220px_minmax(0,1fr)]">
   <aside class="sticky top-0 hidden h-screen flex-col bg-sidebar px-4 py-6 text-paper min-[1120px]:flex">
     <a class="font-bold tracking-[0.01em] no-underline" href="/today">
-      Domain CRM
+      Domain Desk
       <small class="mt-1 block text-[0.72rem] font-normal text-[#bbbdb6]">Inbound operations desk</small>
     </a>
     <nav class="mt-8 grid gap-1" aria-label="Primary">
@@ -72,7 +72,7 @@
   <div class="grid min-h-screen grid-rows-[56px_minmax(0,1fr)] min-[1120px]:contents">
     <header class="flex items-center justify-between border-b border-line bg-paper px-4 min-[1120px]:hidden">
       <Nav />
-      <a class="font-bold tracking-[0.01em] no-underline" href="/inbox">Domain CRM</a>
+      <a class="font-bold tracking-[0.01em] no-underline" href="/inbox">Domain Desk</a>
       <button
         class="grid size-8 place-items-center rounded-full border border-line bg-transparent text-sm font-bold text-ink hover:bg-paper-soft"
         aria-label="Keyboard shortcuts"

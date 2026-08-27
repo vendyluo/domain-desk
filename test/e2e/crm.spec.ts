@@ -8,6 +8,12 @@ async function expectNoSeriousAccessibilityViolations(page: import('@playwright/
 
 test('critical inbound CRM states are usable and safe', async ({ page }, testInfo) => {
   await page.goto('/inbox');
+  await expect(page).toHaveTitle('Inbox · Domain Desk');
+  await expect(
+    testInfo.project.name === 'desktop'
+      ? page.getByRole('link', { name: 'Domain Desk Inbound operations desk' })
+      : page.locator('header').getByRole('link', { name: 'Domain Desk' })
+  ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Inbox', level: 1 })).toBeVisible();
   await expect(page.getByRole('link', { name: /Pricing request/ })).toContainText('Pricing request — 年間契約');
   await expectNoSeriousAccessibilityViolations(page);

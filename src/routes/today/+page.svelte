@@ -10,7 +10,7 @@
   ]);
 </script>
 
-<svelte:head><title>Today · Domain CRM</title></svelte:head>
+<svelte:head><title>Today · Domain Desk</title></svelte:head>
 
 <article class="col-span-full overflow-auto px-5 py-8 min-[720px]:px-10">
   <div class="mx-auto max-w-4xl">

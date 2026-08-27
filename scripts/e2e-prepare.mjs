@@ -23,19 +23,19 @@ for (const migration of [
   'migrations/0002_slice_3a.sql',
   'migrations/0003_opportunities.sql'
 ]) {
-  await run(['d1', 'execute', 'domain-crm', '--local', '--persist-to', state, '--file', migration]);
+  await run(['d1', 'execute', 'domain-desk', '--local', '--persist-to', state, '--file', migration]);
 }
 const sql = (await readFile('test/e2e/fixtures.sql', 'utf8'))
   .replaceAll('__ATTACHMENT_HASH__', hash)
   .replaceAll('__ATTACHMENT_SIZE__', String(binary.byteLength));
 await writeFile(fixtureSql, sql);
 await writeFile(fixtureFile, binary);
-await run(['d1', 'execute', 'domain-crm', '--local', '--persist-to', state, '--file', fixtureSql]);
+await run(['d1', 'execute', 'domain-desk', '--local', '--persist-to', state, '--file', fixtureSql]);
 await run([
   'r2',
   'object',
   'put',
-  `domain-crm-attachments/attachments/${hash}`,
+  `domain-desk-attachments/attachments/${hash}`,
   '--local',
   '--persist-to',
   state,

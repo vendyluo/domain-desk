@@ -1,4 +1,4 @@
-# Cloudflare Domain CRM
+# Domain Desk
 
 A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. SvelteKit 5 provides the server-first responsive Today, Inbox, Contacts, Opportunities, and Settings UI. A thin project entrypoint combines the official adapter's `fetch` output with Email Routing's `email` handler. Raw MIME archiving is intentionally deferred.
 
@@ -22,24 +22,24 @@ Apply all three D1 migrations in order. Migration 0003 adds Slice 3B opportuniti
 Do not deploy before completing the Access steps below.
 
 ```sh
-npx wrangler d1 create domain-crm
-npx wrangler r2 bucket create domain-crm-attachments
+npx wrangler d1 create domain-desk
+npx wrangler r2 bucket create domain-desk-attachments
 ```
 
-Copy the D1 UUID printed by the first command into `database_id` in the top-level `[[d1_databases]]` block of `wrangler.toml` (leave the local environment placeholder alone). Names and bindings must remain `domain-crm`/`DB` and `domain-crm-attachments`/`ATTACHMENTS`.
+Copy the D1 UUID printed by the first command into `database_id` in the top-level `[[d1_databases]]` block of `wrangler.toml` (leave the local environment placeholder alone). Names and bindings must remain `domain-desk`/`DB` and `domain-desk-attachments`/`ATTACHMENTS`.
 
 ```sh
 npm run build                              # validates/bundles; never deploys
-npx wrangler d1 migrations apply domain-crm --remote
+npx wrangler d1 migrations apply domain-desk --remote
 ```
 
 Manually seed the one initial context. Copy [`setup/one-domain.sql.example`](./setup/one-domain.sql.example) outside the repository, replace every sample value, and review the resulting file. IDs are stable labels you choose; use a lowercase exact mailbox address. The transaction uses plain `INSERT` statements so any conflicting ID, domain, or mailbox fails instead of overwriting existing CRM data.
 
 ```sh
-cp setup/one-domain.sql.example /tmp/domain-crm-one-domain.sql
-# Edit and review /tmp/domain-crm-one-domain.sql, then explicitly apply it:
-npx wrangler d1 execute domain-crm --remote --file /tmp/domain-crm-one-domain.sql
-npx wrangler d1 execute domain-crm --remote --command "SELECT d.name domain,p.name product,mi.address mailbox FROM mailbox_identities mi JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id ORDER BY mi.address"
+cp setup/one-domain.sql.example /tmp/domain-desk-one-domain.sql
+# Edit and review /tmp/domain-desk-one-domain.sql, then explicitly apply it:
+npx wrangler d1 execute domain-desk --remote --file /tmp/domain-desk-one-domain.sql
+npx wrangler d1 execute domain-desk --remote --command "SELECT d.name domain,p.name product,mi.address mailbox FROM mailbox_identities mi JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id ORDER BY mi.address"
 ```
 
 The initial migration creates the nine ingestion tables; Slice 3A adds `next_actions`, `activity_events`, and reversible `contact_merges` history. Slice 3B adds `opportunities`, `opportunity_contacts`, and `opportunity_conversations`, plus the designated-action relation and opportunity activity subject needed by that surface.
@@ -49,8 +49,8 @@ The initial migration creates the nine ingestion tables; Slice 3A adds `next_act
 Local development requires `LOCAL_DEV=true` in a local, uncommitted environment and local D1/R2 bindings; it must not touch production resources. The Vite development command does not provision or migrate bindings. Never set `LOCAL_DEV=true` in the top-level production vars.
 
 ```sh
-npx wrangler d1 migrations apply domain-crm --local --env local
-npx wrangler d1 execute domain-crm --local --env local --command "INSERT INTO domains(id,name) VALUES('domain-main','example.test'); INSERT INTO products(id,domain_id,name) VALUES('product-main','domain-main','Test Product'); INSERT INTO mailbox_identities(id,product_id,address) VALUES('mailbox-hello','product-main','hello@example.test');"
+npx wrangler d1 migrations apply domain-desk --local --env local
+npx wrangler d1 execute domain-desk --local --env local --command "INSERT INTO domains(id,name) VALUES('domain-main','example.test'); INSERT INTO products(id,domain_id,name) VALUES('product-main','domain-main','Test Product'); INSERT INTO mailbox_identities(id,product_id,address) VALUES('mailbox-hello','product-main','hello@example.test');"
 LOCAL_DEV=true npm run dev
 ```
 
@@ -70,9 +70,9 @@ Settings performs read-only probes of the D1 schema, all three migration-owned t
 Create a new backup directory from either local or remote resources. The command is read-only: it exports the complete D1 schema/data, queries canonical attachment references, downloads exactly those R2 objects, verifies D1 size and SHA-256 metadata, and writes `manifest.json`. It refuses an ambiguous source, an existing destination, unsafe object paths, missing objects, and hash/size drift. Unreferenced R2 objects are intentionally excluded.
 
 ```sh
-npm run backup -- --local --output /safe/path/domain-crm-local-2026-08-26
+npm run backup -- --local --output /safe/path/domain-desk-local-2026-08-26
 # Remote is an explicit separate choice and uses the configured Wrangler identity:
-npm run backup -- --remote --output /safe/path/domain-crm-production-2026-08-26
+npm run backup -- --remote --output /safe/path/domain-desk-production-2026-08-26
 ```
 
 Treat a backup as complete only when the command prints `Verified backup created`. Protect the directory like mailbox data. Recovery is deliberately operator-run: create fresh D1/R2 resources, inspect `manifest.json`, import `database.sql`, upload each listed `backup_path` to its exact `object_key`, then run the Settings probes and download representative attachments before changing routing. This v1 command does not delete, retain credentials, schedule backups, upload backups, or mutate the source resources.
@@ -93,8 +93,8 @@ First disable/delete the exact Email Routing custom-address rule. Run and verify
 
 ```sh
 npx wrangler delete
-npx wrangler d1 delete domain-crm
-npx wrangler r2 bucket delete domain-crm-attachments
+npx wrangler d1 delete domain-desk
+npx wrangler r2 bucket delete domain-desk-attachments
 ```
 
 Remove the Access application last. These deletion commands are destructive; there is no automated data rollback. Schema changes should instead be made by a new forward migration.
