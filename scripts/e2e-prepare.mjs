@@ -22,7 +22,8 @@ for (const migration of [
   'migrations/0001_initial.sql',
   'migrations/0002_slice_3a.sql',
   'migrations/0003_opportunities.sql',
-  'migrations/0004_outbound.sql'
+  'migrations/0004_outbound.sql',
+  'migrations/0005_form_intake.sql'
 ]) {
   await run(['d1', 'execute', 'domain-desk', '--local', '--persist-to', state, '--file', migration]);
 }

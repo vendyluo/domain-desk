@@ -51,14 +51,19 @@ test('critical inbound CRM states are usable and safe', async ({ page }, testInf
 
 test('navigation, keyboard, empty filter, and 320px layout remain operable', async ({ page }, testInfo) => {
   await page.goto('/inbox');
+  // Retry the first interaction until hydration has attached the listeners.
   if (testInfo.project.name === 'mobile') {
-    await page.getByRole('button', { name: 'Open navigation' }).click();
-    await expect(page.getByRole('navigation', { name: 'Mobile navigation' })).toBeVisible();
+    await expect(async () => {
+      await page.getByRole('button', { name: 'Open navigation' }).click();
+      await expect(page.getByRole('navigation', { name: 'Mobile navigation' })).toBeVisible({ timeout: 500 });
+    }).toPass({ timeout: 10_000 });
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Open navigation' })).toBeFocused();
   } else {
-    await page.keyboard.press('/');
-    await expect(page.getByRole('textbox', { name: 'Search conversations' })).toBeFocused();
+    await expect(async () => {
+      await page.keyboard.press('/');
+      await expect(page.getByRole('textbox', { name: 'Search conversations' })).toBeFocused({ timeout: 500 });
+    }).toPass({ timeout: 10_000 });
   }
 
   await page.getByRole('textbox', { name: 'Search conversations' }).fill('not present');
@@ -69,4 +74,21 @@ test('navigation, keyboard, empty filter, and 320px layout remain operable', asy
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth
   );
   expect(horizontalOverflow).toBe(false);
+});
+
+test('landing-page form intake accepts a verified submission into the inbox', async ({ page, request }, testInfo) => {
+  const subject = `E2E form ${testInfo.project.name}`;
+  const response = await request.post('/intake/mailbox:e2e', {
+    headers: { Origin: 'https://inquiries.example' },
+    form: {
+      email: 'form-visitor@customer.example',
+      name: 'Form Visitor',
+      subject,
+      message: 'Submitted through the embedded landing-page form.',
+      'cf-turnstile-response': 'e2e-test-token'
+    }
+  });
+  expect(response.status()).toBe(200);
+  await page.goto('/inbox');
+  await expect(page.getByRole('link', { name: new RegExp(subject) })).toBeVisible();
 });

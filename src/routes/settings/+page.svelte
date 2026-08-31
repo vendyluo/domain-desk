@@ -1,5 +1,17 @@
 <script lang="ts">
   let { data } = $props();
+  const snippet = (mailbox: { id: string; domain: string }) =>
+    `<form action="${data.intakeEmbed.origin}/intake/${mailbox.id}" method="POST">
+  <input type="email" name="email" required placeholder="Your email">
+  <input name="name" placeholder="Your name">
+  <input name="subject" placeholder="Subject">
+  <textarea name="message" required placeholder="How can we help?"></textarea>
+  <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px">
+  <input type="hidden" name="redirect" value="https://${mailbox.domain}/thanks">
+  <div class="cf-turnstile" data-sitekey="${data.intakeEmbed.siteKey ?? 'YOUR_TURNSTILE_SITE_KEY'}"></div>
+  <button>Send</button>
+</form>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer><\/script>`;
 </script>
 
 <svelte:head><title>Settings · Domain Desk</title></svelte:head>
@@ -52,6 +64,30 @@
             Replies send through Cloudflare Email Service from the conversation's mailbox address. Each send is recorded
             before delivery and every outcome — sent, failed, or unconfirmed — stays visible on the message.
           </p>
+        </div>
+      </section>
+      <section class="grid gap-2 py-6 min-[720px]:grid-cols-[180px_minmax(0,1fr)] min-[720px]:gap-8">
+        <h2 class="font-reading text-lg font-semibold">Form intake</h2>
+        <div class="text-sm leading-relaxed text-ink-soft">
+          <p>
+            <strong class={data.intake.configured ? 'text-teal-dark' : 'text-copper-dark'}
+              >{data.intake.configured ? 'Configured' : 'Not configured'}</strong
+            >
+            · Turnstile server verification
+          </p>
+          <p class="mt-2">
+            <code class="rounded bg-paper px-1.5 py-0.5 text-xs">POST /intake/&lt;mailbox&gt;</code> is the only unauthenticated
+            route. Every submission must pass Turnstile and originate from the mailbox's own domain; nothing submitted is
+            ever echoed back.
+          </p>
+          {#each data.intakeEmbed.mailboxes as mailbox}
+            <details class="mt-3">
+              <summary class="cursor-pointer font-semibold">Embed snippet for {mailbox.address}</summary>
+              <pre class="mt-2 overflow-x-auto rounded border border-line bg-paper p-3 text-xs leading-relaxed"><code
+                  >{snippet(mailbox)}</code
+                ></pre>
+            </details>
+          {/each}
         </div>
       </section>
       <section class="grid gap-2 py-6 min-[720px]:grid-cols-[180px_minmax(0,1fr)] min-[720px]:gap-8">

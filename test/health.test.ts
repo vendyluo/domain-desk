@@ -13,11 +13,13 @@ describe('deployment health', () => {
           { name: '0001 · inbound CRM graph', ready: true, missing: [] },
           { name: '0002 · follow-up and contact history', ready: true, missing: [] },
           { name: '0003 · opportunities', ready: true, missing: [] },
-          { name: '0004 · outbound replies', ready: true, missing: [] }
+          { name: '0004 · outbound replies', ready: true, missing: [] },
+          { name: '0005 · form intake', ready: true, missing: [] }
         ]
       },
       attachments: { ready: true },
       outbound: { configured: Boolean((env as unknown as Env).EMAIL) },
+      intake: { configured: Boolean((env as unknown as Env).TURNSTILE_SECRET_KEY) },
       access: { mode: 'local bypass', configured: true }
     });
   });

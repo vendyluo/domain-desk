@@ -20,6 +20,7 @@ export type DeploymentHealth = {
   database: { ready: boolean; migrations: { name: string; ready: boolean; missing: string[] }[] };
   attachments: { ready: boolean };
   outbound: { configured: boolean };
+  intake: { configured: boolean };
   access: { mode: 'local bypass' | 'Cloudflare Access'; configured: boolean };
 };
 
@@ -41,6 +42,15 @@ export async function deploymentHealth(env: Env): Promise<DeploymentHealth> {
     ready: outboundReady,
     missing: outboundReady ? [] : ['messages outbound columns']
   });
+  const channelColumn = await env.DB.prepare(
+    "SELECT count(*) n FROM pragma_table_info('messages') WHERE name='channel'"
+  ).first<{ n: number }>();
+  const intakeReady = channelColumn?.n === 1;
+  migrations.push({
+    name: '0005 · form intake',
+    ready: intakeReady,
+    missing: intakeReady ? [] : ['messages.channel']
+  });
 
   let attachmentsReady: boolean;
   try {
@@ -61,6 +71,7 @@ export async function deploymentHealth(env: Env): Promise<DeploymentHealth> {
     database: { ready: migrations.every((migration) => migration.ready), migrations },
     attachments: { ready: attachmentsReady },
     outbound: { configured: Boolean(env.EMAIL) },
+    intake: { configured: Boolean(env.TURNSTILE_SECRET_KEY) },
     access: { mode: local ? 'local bypass' : 'Cloudflare Access', configured: local || accessConfigured }
   };
 }

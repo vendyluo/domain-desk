@@ -4,6 +4,7 @@ import migration from '../migrations/0001_initial.sql?raw';
 import slice3a from '../migrations/0002_slice_3a.sql?raw';
 import slice3b from '../migrations/0003_opportunities.sql?raw';
 import outbound from '../migrations/0004_outbound.sql?raw';
+import formIntake from '../migrations/0005_form_intake.sql?raw';
 
 beforeEach(async () => {
   for (const table of [
@@ -24,7 +25,7 @@ beforeEach(async () => {
     'domains'
   ])
     await env.DB.prepare(`DROP TABLE IF EXISTS ${table}`).run();
-  for (const sql of [migration, slice3a, slice3b, outbound])
+  for (const sql of [migration, slice3a, slice3b, outbound, formIntake])
     for (const statement of sql
       .split(';')
       .map((s) => s.trim())

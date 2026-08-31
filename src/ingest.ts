@@ -17,7 +17,7 @@ function messageIds(value?: string): string[] {
   return fallback ? [fallback] : [];
 }
 
-async function hash(data: ArrayBuffer | ArrayBufferView | string) {
+export async function hash(data: ArrayBuffer | ArrayBufferView | string) {
   const source = typeof data === 'string' ? new TextEncoder().encode(data) : data;
   const bytes =
     source instanceof ArrayBuffer
@@ -75,6 +75,22 @@ function htmlToText(html: string): string {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+// Resolve an email address to its canonical contact: follow the merge chain to the
+// surviving contact, or derive the deterministic id for a brand-new address.
+export async function resolveContactId(db: Env['DB'], address: string): Promise<string> {
+  const canonical = await db
+    .prepare(
+      `WITH RECURSIVE canon(id,merged_into_id) AS (
+         SELECT c.id,c.merged_into_id FROM contact_email_addresses ce JOIN contacts c ON c.id=ce.contact_id WHERE ce.address=?
+         UNION ALL
+         SELECT c.id,c.merged_into_id FROM contacts c JOIN canon ON c.id=canon.merged_into_id
+       ) SELECT id FROM canon WHERE merged_into_id IS NULL`
+    )
+    .bind(address)
+    .first<{ id: string }>();
+  return canonical?.id ?? `contact:${await hash(address)}`;
 }
 
 export async function readBounded(stream: ReadableStream<Uint8Array>, limit = MAX_RAW): Promise<ArrayBuffer> {
@@ -178,16 +194,7 @@ export async function ingestRaw(
   const messageDbId = `msg:${messageKey}`;
   conversationId ??= `conv:${messageKey}`;
   const senderEmailId = `email:${await hash(sender)}`;
-  const canonical = await env.DB.prepare(
-    `WITH RECURSIVE canon(id,merged_into_id) AS (
-       SELECT c.id,c.merged_into_id FROM contact_email_addresses ce JOIN contacts c ON c.id=ce.contact_id WHERE ce.address=?
-       UNION ALL
-       SELECT c.id,c.merged_into_id FROM contacts c JOIN canon ON c.id=canon.merged_into_id
-     ) SELECT id FROM canon WHERE merged_into_id IS NULL`
-  )
-    .bind(sender)
-    .first<{ id: string }>();
-  const contactId = canonical?.id ?? `contact:${await hash(sender)}`;
+  const contactId = await resolveContactId(env.DB, sender);
   const received = receivedAt.toISOString();
   const attachmentRows: {
     id: string;

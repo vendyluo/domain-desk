@@ -70,6 +70,9 @@
             <div class="min-w-0">
               <strong class="block text-sm">{message.sender_name || message.sender_address}</strong>
               <p class="mt-0.5 text-xs text-muted">{message.sender_address}</p>
+              {#if message.channel === 'form'}
+                <p class="mt-1 text-xs font-semibold text-copper-dark">Landing-page form submission</p>
+              {/if}
               {#if message.direction === 'outbound'}
                 <p
                   class={`mt-1 text-xs font-semibold ${message.delivery_status === 'failed' ? 'text-copper-dark' : 'text-teal'}`}

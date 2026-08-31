@@ -2,7 +2,7 @@
 
 A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. SvelteKit 5 provides the server-first responsive Today, Inbox, Contacts, Opportunities, and Settings UI. A thin project entrypoint combines the official adapter's `fetch` output with Email Routing's `email` handler. Raw MIME archiving is intentionally deferred.
 
-Version 1 supports exactly manually configured domains, products, and mailboxes. It does **not** configure DNS or Email Routing, send mail, use AI, embed in another product, use queues or Durable Objects, or act as a generic workflow/CRM platform. Outbound replies require a later explicit provider and lifecycle decision.
+Version 1 supports exactly manually configured domains, products, and mailboxes. Inbound arrives by email and by an embeddable landing-page form; replies send through the Cloudflare Email Service binding. It does **not** configure DNS or Email Routing, use AI, use queues or Durable Objects, or act as a generic workflow/CRM platform.
 
 ## Prerequisites and install
 
@@ -92,6 +92,37 @@ Behavior and guarantees:
 If a reply fails with `E_SENDER_NOT_VERIFIED` or `E_SENDER_DOMAIN_NOT_AVAILABLE`, complete
 `wrangler email sending enable` for that domain. `E_RECIPIENT_SUPPRESSED` means the recipient
 previously bounced or complained; do not force resends.
+
+## Landing-page form intake
+
+Each SaaS landing page can embed a plain HTML contact form that posts to
+`POST /intake/<mailbox-id>` — the only unauthenticated route. Submissions become normal
+conversations (channel `form`) attributed to that mailbox's product and domain, and replies go
+out through the same outbound flow; the customer's email answer threads back into the form
+conversation.
+
+Setup, in order:
+
+1. Create a [Turnstile widget](https://dash.cloudflare.com/?to=/:account/turnstile) for your
+   landing-page domains. Put the site key in `TURNSTILE_SITE_KEY` (`wrangler.toml` vars) and set
+   the secret with `npx wrangler secret put TURNSTILE_SECRET_KEY`. Local development uses
+   Cloudflare's documented always-pass test keys already present in the `local` env.
+2. In Zero Trust, add a **bypass** policy for `<worker-hostname>/intake/*` to the Access
+   application. Every other path stays fully protected; the app additionally re-checks the JWT
+   on all non-intake routes.
+3. Recommended: add a WAF rate-limiting rule for `/intake/*`.
+4. Copy the per-mailbox embed snippet from Settings into the landing page. Pages that prefer an
+   inline (no-navigation) experience can `fetch()` the same endpoint with `FormData`; the
+   endpoint answers CORS for the mailbox's own domain — the contract is the endpoint, no
+   JavaScript widget is published.
+
+Safety behavior: Turnstile is verified server-side on every submission (fail closed, including
+when the verifier is unreachable); the `Origin` must belong to the mailbox's configured domain;
+a hidden honeypot field silently drops bots; identical same-day resubmissions collapse into one
+message; the optional `redirect` must be an `https:` URL on the submitting page's own hostname;
+responses never echo submitted content. Rejections log `form_intake_rejected` with codes
+`unknown_mailbox`, `invalid_origin`, `turnstile_failed`, `invalid_submission`, or
+`not_configured`.
 
 ## Verified backup and recovery boundary
 

@@ -13,5 +13,7 @@ declare namespace Cloudflare {
     LOCAL_DEV: string;
     ACCESS_TEAM_DOMAIN: string;
     ACCESS_AUD: string;
+    TURNSTILE_SECRET_KEY?: string;
+    TURNSTILE_SITE_KEY?: string;
   }
 }
