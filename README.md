@@ -2,7 +2,7 @@
 
 A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. SvelteKit 5 provides the server-first responsive Today, Inbox, Contacts, Opportunities, and Settings UI. A thin project entrypoint combines the official adapter's `fetch` output with Email Routing's `email` handler. Raw MIME archiving is intentionally deferred.
 
-Version 1 supports exactly manually configured domains, products, and mailboxes. Inbound arrives by email and by an embeddable landing-page form; replies send through the Cloudflare Email Service binding. It does **not** configure DNS or Email Routing, use AI, use queues or Durable Objects, or act as a generic workflow/CRM platform.
+Version 1 supports exactly manually configured domains, products, and mailboxes. Inbound arrives by email and by an embeddable landing-page form; replies send through the Cloudflare Email Service binding. It does **not** modify DNS or replace an existing mail provider, use AI, use queues or Durable Objects, or act as a generic workflow/CRM platform.
 
 ## Prerequisites and install
 
@@ -60,6 +60,24 @@ LOCAL_DEV=true npm run dev
 2. In `wrangler.toml`, replace `ACCESS_TEAM_DOMAIN` with the full `https://<team>.cloudflareaccess.com` URL and `ACCESS_AUD` with that Access application's audience tag. The Worker verifies the JWT signature, issuer, audience, and lifetime and fails closed when configuration is missing or invalid. The email handler is not an HTTP route and remains callable by Email Routing.
 3. Deploy only after Access is ready: `npx wrangler deploy`.
 4. Before changing Email Routing, inspect the domain's current DNS and routing configuration in Cloudflare. If any non-Cloudflare/third-party MX records exist, stop: v1 has no installer or migration planner and must not replace that mail provider. For an eligible domain, enable Email Routing manually and create one exact custom-address rule (for example `hello@example.com`) whose action sends to this Worker. Do not use catch-all for initial verification. The envelope recipient must exactly match a seeded `mailbox_identities.address`; unknown mailboxes are rejected and create no CRM state.
+
+## Onboard each additional domain with the CLI
+
+After the Worker is deployed and Access is in place, each further domain, product, or mailbox
+is one command run from your machine:
+
+```sh
+export CLOUDFLARE_API_TOKEN=...   # Zone:Read + Email Routing Rules:Edit; never deployed
+npm run onboard -- --remote --domain example.com --product "My SaaS" --mailbox hello
+```
+
+The command seeds the D1 rows (reusing an existing domain or product row, refusing to move a
+mailbox between products) and creates one exact-address Email Routing rule pointing at this
+Worker. It reads Cloudflare state first and **never changes DNS**: when Email Routing is not
+yet enabled for the zone it stops and tells you to review the zone's existing MX records and
+enable routing manually — exactly the step where you confirm no third-party mail provider
+would be replaced. Re-running after a partial failure resumes safely; `--local` seeds a local
+database only. The manual `setup/one-domain.sql.example` path remains available.
 
 Send a plain-text test email with a small attachment from an external account. Check structured, body-free logs with `npx wrangler tail`, open the Access-protected Worker UI, and verify the inbox row, contact, text body, timestamps, attachment metadata, and authorized download. Downloads resolve the D1 relation before reading R2, force a safe content disposition, and fail explicitly when the referenced binary is missing or inconsistent. Re-deliver the same message and verify it remains one message. Raw HTML is never stored or rendered as UI content; the UI displays plain text only. A message that has no text/plain part stores a server-side plain-text extraction of its HTML body, so HTML-only mail remains readable without rendering HTML.
 
