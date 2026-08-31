@@ -52,6 +52,31 @@ function emailDate(value: string | undefined): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function htmlToText(html: string): string {
+  const codePoint = (value: number) => (value >= 0 && value <= 0x10ffff ? String.fromCodePoint(value) : ' ');
+  const decoded = html
+    .replace(/<(script|style|head|title)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li\b[^>]*>/gi, '\n- ')
+    .replace(/<\/(p|div|li|tr|table|h[1-6]|blockquote|pre|ul|ol|section|article|header|footer)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => codePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => codePoint(Number(dec)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, '&');
+  return decoded
+    .split('\n')
+    .map((line) => line.replace(/[ \t\u00a0]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export async function readBounded(stream: ReadableStream<Uint8Array>, limit = MAX_RAW): Promise<ArrayBuffer> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
@@ -198,6 +223,10 @@ export async function ingestRaw(
     throw new IngestError('attachment_storage_failed', error instanceof Error ? error.message : 'R2 write failed');
   }
   const ingestedAt = new Date().toISOString();
+  // An authored text/plain part is stored verbatim; when a message is HTML-only,
+  // a plain-text extraction of the HTML is stored instead. Raw HTML is never
+  // stored or rendered, and the dedupe fingerprint keeps hashing the raw parts.
+  const textBody = email.text?.trim() ? email.text : htmlToText(email.html ?? '') || null;
   const statements: D1PreparedStatement[] = [
     env.DB.prepare('INSERT OR IGNORE INTO contacts(id,display_name) VALUES(?,?)').bind(
       contactId,
@@ -228,7 +257,7 @@ export async function ingestRaw(
       sender,
       email.from?.name?.trim() || null,
       email.subject || null,
-      email.text || null,
+      textBody,
       emailDate(email.date),
       received,
       ingestedAt

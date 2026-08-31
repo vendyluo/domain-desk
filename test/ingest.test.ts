@@ -177,3 +177,45 @@ describe('post-merge sender resolution', () => {
     expect(await count('contacts')).toBe(4);
   });
 });
+
+describe('html-only text extraction', () => {
+  it('stores a readable plain-text extraction for HTML-only mail without storing HTML', async () => {
+    const raw = bytes(
+      'From: A <a@x.test>\r\nTo: hello@example.com\r\nMessage-ID: <html-only@x>\r\nSubject: Rich\r\nContent-Type: text/html; charset=utf-8\r\n\r\n' +
+        '<html><head><style>p{color:red}</style><title>ignore</title></head><body>' +
+        '<p>Hello&nbsp;team,</p><p>Could you &lt;quote&gt; 25 seats?<br>Thanks &amp; regards</p>' +
+        '<ul><li>First need</li><li>Second need</li></ul><script>alert("never")</script></body></html>'
+    );
+    await ingestRaw(env as Env, 'hello@example.com', raw);
+    const row = (await env.DB.prepare('SELECT text_body FROM messages').first<{ text_body: string }>())!;
+    expect(row.text_body).toContain('Hello team,');
+    expect(row.text_body).toContain('Could you <quote> 25 seats?\nThanks & regards');
+    expect(row.text_body).toContain('- First need');
+    expect(row.text_body).not.toContain('<p>');
+    expect(row.text_body).not.toContain('alert(');
+    expect(row.text_body).not.toContain('color:red');
+    expect(row.text_body).not.toContain('ignore');
+    await ingestRaw(env as Env, 'hello@example.com', raw);
+    expect(await count('messages')).toBe(1);
+  });
+
+  it('keeps an authored text/plain part verbatim when both parts exist', async () => {
+    const raw = bytes(
+      'From: A <a@x.test>\r\nTo: hello@example.com\r\nMessage-ID: <both@x>\r\nSubject: Both\r\nContent-Type: multipart/alternative; boundary=z\r\n\r\n' +
+        '--z\r\nContent-Type: text/plain\r\n\r\nPlain wins\r\n--z\r\nContent-Type: text/html\r\n\r\n<p>HTML loses</p>\r\n--z--'
+    );
+    await ingestRaw(env as Env, 'hello@example.com', raw);
+    const row = (await env.DB.prepare('SELECT text_body FROM messages').first<{ text_body: string }>())!;
+    expect(row.text_body).toContain('Plain wins');
+    expect(row.text_body).not.toContain('HTML loses');
+  });
+
+  it('stores null when a message has neither text nor extractable content', async () => {
+    const raw = bytes(
+      'From: A <a@x.test>\r\nTo: hello@example.com\r\nMessage-ID: <empty-html@x>\r\nSubject: Empty\r\nContent-Type: text/html\r\n\r\n<html><body><style>.x{}</style></body></html>'
+    );
+    await ingestRaw(env as Env, 'hello@example.com', raw);
+    const row = (await env.DB.prepare('SELECT text_body FROM messages').first<{ text_body: string | null }>())!;
+    expect(row.text_body).toBe(null);
+  });
+});
