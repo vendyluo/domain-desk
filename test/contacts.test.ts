@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { ingestRaw } from '../src/ingest';
 import { createNextAction } from '../src/lib/server/actions';
+import { createOpportunity } from '../src/lib/server/opportunities';
 import {
   choosePrimaryEmail,
   getContact,
@@ -93,5 +94,40 @@ describe('contact identity commands', () => {
       .first<any>();
     expect(JSON.parse(history.prior_state_json).relations.messages).toHaveLength(1);
     expect(JSON.parse(history.provenance_json).confirmation).toBe(duplicate);
+  });
+});
+
+describe('contact merge moves opportunity attribution', () => {
+  it('previews, moves, and snapshots opportunities with the other merged relations', async () => {
+    const survivor = await ingest('Survivor <survivor@example.test>', 'survivor', '2026-01-01Z');
+    const duplicate = await ingest('Duplicate <duplicate@example.test>', 'duplicate', '2026-01-02Z');
+    const conversation = (await env.DB.prepare('SELECT id FROM conversations WHERE contact_id=?')
+      .bind(duplicate)
+      .first<{ id: string }>())!;
+    const opportunityId = await createOpportunity(env.DB, {
+      title: 'Duplicate deal',
+      desiredOutcome: 'Signed contract',
+      conversationId: conversation.id
+    });
+    const preview = await previewContactMerge(env.DB, survivor, duplicate);
+    expect(preview.counts.opportunities).toBe(1);
+    await mergeContacts(env.DB, survivor, duplicate, duplicate, new Date('2026-02-01Z'));
+    expect(
+      (await env.DB.prepare('SELECT contact_id FROM opportunities WHERE id=?').bind(opportunityId).first<any>())
+        .contact_id
+    ).toBe(survivor);
+    expect(
+      (
+        await env.DB.prepare('SELECT contact_id FROM opportunity_contacts WHERE opportunity_id=?')
+          .bind(opportunityId)
+          .first<any>()
+      ).contact_id
+    ).toBe(survivor);
+    const history = await env.DB.prepare('SELECT prior_state_json FROM contact_merges WHERE duplicate_id=?')
+      .bind(duplicate)
+      .first<any>();
+    const relations = JSON.parse(history.prior_state_json).relations;
+    expect(relations.opportunities).toEqual([opportunityId]);
+    expect(relations.opportunity_contacts).toEqual([opportunityId]);
   });
 });

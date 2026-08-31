@@ -196,10 +196,11 @@ export async function previewContactMerge(db: DB, survivorId: string, duplicateI
     (SELECT count(*) FROM conversations WHERE contact_id=?) conversations,
     (SELECT count(*) FROM messages WHERE contact_id=?) messages,
     (SELECT count(*) FROM next_actions WHERE contact_id=?) next_actions,
-    (SELECT count(*) FROM activity_events WHERE contact_id=?) activity_events
+    (SELECT count(*) FROM activity_events WHERE contact_id=?) activity_events,
+    (SELECT count(*) FROM opportunities WHERE contact_id=?) opportunities
   `
     )
-    .bind(duplicateId, duplicateId, duplicateId, duplicateId)
+    .bind(duplicateId, duplicateId, duplicateId, duplicateId, duplicateId)
     .first<Record<string, number>>();
   return { survivor, duplicate, addresses: addresses.results, counts: counts! };
 }
@@ -219,12 +220,19 @@ export async function mergeContacts(
     ['conversations', 'conversations'],
     ['messages', 'messages'],
     ['next_actions', 'next_actions'],
-    ['activity_events', 'activity_events']
+    ['activity_events', 'activity_events'],
+    ['opportunities', 'opportunities']
   ] as const) {
     relationIds[key] = (
       await db.prepare(`SELECT id FROM ${table} WHERE contact_id=? ORDER BY id`).bind(duplicateId).all<{ id: string }>()
     ).results.map((row) => row.id);
   }
+  relationIds.opportunity_contacts = (
+    await db
+      .prepare('SELECT opportunity_id FROM opportunity_contacts WHERE contact_id=? ORDER BY opportunity_id')
+      .bind(duplicateId)
+      .all<{ opportunity_id: string }>()
+  ).results.map((row) => row.opportunity_id);
   const at = now.toISOString();
   const mergeId = `merge:${crypto.randomUUID()}`;
   const prior = {
@@ -242,6 +250,13 @@ export async function mergeContacts(
     db.prepare('UPDATE messages SET contact_id=? WHERE contact_id=?').bind(survivorId, duplicateId),
     db.prepare('UPDATE next_actions SET contact_id=? WHERE contact_id=?').bind(survivorId, duplicateId),
     db.prepare('UPDATE activity_events SET contact_id=? WHERE contact_id=?').bind(survivorId, duplicateId),
+    db.prepare('UPDATE opportunities SET contact_id=? WHERE contact_id=?').bind(survivorId, duplicateId),
+    db
+      .prepare(
+        'INSERT OR IGNORE INTO opportunity_contacts(opportunity_id,contact_id,created_at) SELECT opportunity_id,?,created_at FROM opportunity_contacts WHERE contact_id=?'
+      )
+      .bind(survivorId, duplicateId),
+    db.prepare('DELETE FROM opportunity_contacts WHERE contact_id=?').bind(duplicateId),
     db
       .prepare('UPDATE contacts SET merged_into_id=? WHERE id=? AND merged_into_id IS NULL')
       .bind(survivorId, duplicateId),

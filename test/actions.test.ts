@@ -117,3 +117,18 @@ describe('Slice 3A services', () => {
     expect(detail.messages.map((x: any) => x.product)).toEqual(['Other', 'Example Product']);
   });
 });
+
+describe('Today queue completeness', () => {
+  it('keeps undated open actions visible in the due group on any day', async () => {
+    await ingestRaw(env as Env, 'hello@example.com', mail('A <a@x.test>', 'undated'), new Date('2026-05-01Z'));
+    const contact = (await env.DB.prepare('SELECT id FROM contacts').first<{ id: string }>())!;
+    const id = await createNextAction(
+      env.DB,
+      { description: 'Call them back', due: '', sourceType: 'contact', sourceId: contact.id },
+      new Date('2026-05-01T10:00:00Z')
+    );
+    const today = await listToday(env.DB, new Date('2026-06-15T12:00:00Z'));
+    expect(today.due.map((x: any) => x.id)).toContain(id);
+    expect(today.overdue).toHaveLength(0);
+  });
+});

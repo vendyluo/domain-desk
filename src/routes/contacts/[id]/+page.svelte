@@ -68,7 +68,8 @@
           <p>Addresses moved: {preview.addresses.map((address: { address: string }) => address.address).join(', ')}</p>
           <p>
             Affected: {preview.counts.conversations} conversations, {preview.counts.messages} messages, {preview.counts
-              .next_actions} next actions, {preview.counts.activity_events} history events.
+              .next_actions} next actions, {preview.counts.opportunities} opportunities, {preview.counts
+              .activity_events} history events.
           </p>
           <p class="text-sm text-muted">
             Original message mailbox/product/domain attribution is unchanged. The duplicate remains an auditable alias

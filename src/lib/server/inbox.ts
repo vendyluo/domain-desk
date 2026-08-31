@@ -42,7 +42,7 @@ export async function listInbox(db: Env['DB'], filters: InboxFilters) {
     }
   if (filters.q?.trim()) {
     where.push(
-      "(c.subject LIKE ? ESCAPE '\\' OR m.sender_address LIKE ? ESCAPE '\\' OR m.sender_name LIKE ? ESCAPE '\\' OR m.text_body LIKE ? ESCAPE '\\')"
+      "(c.subject LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM messages ms WHERE ms.conversation_id=c.id AND (ms.sender_address LIKE ? ESCAPE '\\' OR ms.sender_name LIKE ? ESCAPE '\\' OR ms.text_body LIKE ? ESCAPE '\\')))"
     );
     const q = `%${filters.q.trim().replace(/[\\%_]/g, '\\$&')}%`;
     values.push(q, q, q, q);

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ingestRaw } from '../src/ingest';
 import { authorizeRequest } from '../src/auth';
 import { attachmentResponse } from '../src/lib/server/attachments';
+import { mergeContacts } from '../src/lib/server/contacts';
 import type { Env } from '../src/types';
 
 const bytes = (s: string) => new TextEncoder().encode(s).buffer;
@@ -150,5 +151,29 @@ describe('inbound ingestion', () => {
     });
     expect(await count('messages')).toBe(0);
     expect(await count('contacts')).toBe(0);
+  });
+});
+
+describe('post-merge sender resolution', () => {
+  const from = (name: string, id: string) =>
+    bytes(`From: ${name}\r\nTo: hello@example.com\r\nMessage-ID: <${id}>\r\nSubject: ${id}\r\n\r\nBody`);
+  const contactOf = async (subject: string) =>
+    (await env.DB.prepare('SELECT contact_id FROM messages WHERE subject=?').bind(subject).first<any>())!.contact_id;
+
+  it('files new mail from a merged address under the surviving contact, across merge chains', async () => {
+    await ingestRaw(env as Env, 'hello@example.com', from('B <b@x.test>', 'b1'));
+    await ingestRaw(env as Env, 'hello@example.com', from('A <a@x.test>', 'a1'));
+    await ingestRaw(env as Env, 'hello@example.com', from('C <c@x.test>', 'c1'));
+    const [b, a, c] = [await contactOf('b1'), await contactOf('a1'), await contactOf('c1')];
+    await mergeContacts(env.DB, a, b, b);
+    expect(await contactOf('b1')).toBe(a);
+    await ingestRaw(env as Env, 'hello@example.com', from('B <b@x.test>', 'b2'));
+    expect(await contactOf('b2')).toBe(a);
+    await mergeContacts(env.DB, c, a, a);
+    await ingestRaw(env as Env, 'hello@example.com', from('B <b@x.test>', 'b3'));
+    expect(await contactOf('b3')).toBe(c);
+    expect(await count('contacts')).toBe(3);
+    await ingestRaw(env as Env, 'hello@example.com', from('D <d@x.test>', 'd1'));
+    expect(await count('contacts')).toBe(4);
   });
 });

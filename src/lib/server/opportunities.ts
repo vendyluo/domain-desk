@@ -183,7 +183,16 @@ export async function transitionOpportunity(
             ? 'lost'
             : 'archived';
   const at = now.toISOString();
-  const statements: D1PreparedStatement[] = [];
+  // Canary: when the opportunity is no longer in the state this command read, the
+  // SELECT produces the existing primary key, the INSERT fails, and D1 rolls back
+  // the whole batch, so a concurrent change never commits a partial transition.
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        'INSERT INTO opportunities(id,title,desired_outcome,contact_id,product_id,created_at,updated_at) SELECT ?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM opportunities WHERE id=? AND state=?)'
+      )
+      .bind(id, '', '', '', '', '', '', id, row.state)
+  ];
   let reason: string | null = null;
   if (target === 'won' || target === 'lost') {
     reason = requiredText(input.reason, 'Outcome reason');
@@ -277,35 +286,45 @@ export async function transitionOpportunity(
       reason
     )
   );
-  const results = await db.batch(statements);
+  let results: D1Result[];
+  try {
+    results = await db.batch(statements);
+  } catch (error) {
+    const current = await db.prepare('SELECT state FROM opportunities WHERE id=?').bind(id).first<{ state: string }>();
+    if (current?.state !== row.state) {
+      throw new Error('Opportunity changed while the command was being applied.', { cause: error });
+    }
+    throw error;
+  }
   const updateResult = results.at(-2);
   if (updateResult?.meta.changes !== 1) {
     throw new Error('Opportunity changed while the command was being applied.');
   }
 }
 
-export async function listOpportunities(db: DB, state?: string) {
-  const valid = ['new', 'qualified', 'active', 'won', 'lost', 'archived'];
-  if (state && !valid.includes(state)) throw new Error('Invalid opportunity filter.');
-  const rows = await db
-    .prepare(
-      `SELECT o.*,ct.display_name,ce.address contact_email,p.name product,d.name domain,
+const opportunityQuery = (where: string) =>
+  `SELECT o.*,ct.display_name,ce.address contact_email,p.name product,d.name domain,
       na.description next_action
      FROM opportunities o
      JOIN contacts ct ON ct.id=o.contact_id
      LEFT JOIN contact_email_addresses ce ON ce.id=ct.primary_email_id
      JOIN products p ON p.id=o.product_id JOIN domains d ON d.id=p.domain_id
      LEFT JOIN next_actions na ON na.opportunity_id=o.id AND na.status='open' AND na.is_designated=1
-     ${state ? 'WHERE o.state=?' : ''}
-     ORDER BY o.updated_at DESC,o.id`
-    )
+     ${where}
+     ORDER BY o.updated_at DESC,o.id`;
+
+export async function listOpportunities(db: DB, state?: string) {
+  const valid = ['new', 'qualified', 'active', 'won', 'lost', 'archived'];
+  if (state && !valid.includes(state)) throw new Error('Invalid opportunity filter.');
+  const rows = await db
+    .prepare(opportunityQuery(state ? 'WHERE o.state=?' : ''))
     .bind(...(state ? [state] : []))
     .all();
   return rows.results;
 }
 
 export async function getOpportunity(db: DB, id: string) {
-  const opportunity = (await listOpportunities(db)).find((row: any) => row.id === id);
+  const opportunity = await db.prepare(opportunityQuery('WHERE o.id=?')).bind(id).first();
   if (!opportunity) return null;
   const [evidence, history] = await Promise.all([
     db

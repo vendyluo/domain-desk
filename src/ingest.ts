@@ -152,7 +152,17 @@ export async function ingestRaw(
   const messageKey = await hash(`${mailbox.id}\n${dedupeKey}`);
   const messageDbId = `msg:${messageKey}`;
   conversationId ??= `conv:${messageKey}`;
-  const contactId = `contact:${await hash(sender)}`;
+  const senderEmailId = `email:${await hash(sender)}`;
+  const canonical = await env.DB.prepare(
+    `WITH RECURSIVE canon(id,merged_into_id) AS (
+       SELECT c.id,c.merged_into_id FROM contact_email_addresses ce JOIN contacts c ON c.id=ce.contact_id WHERE ce.address=?
+       UNION ALL
+       SELECT c.id,c.merged_into_id FROM contacts c JOIN canon ON c.id=canon.merged_into_id
+     ) SELECT id FROM canon WHERE merged_into_id IS NULL`
+  )
+    .bind(sender)
+    .first<{ id: string }>();
+  const contactId = canonical?.id ?? `contact:${await hash(sender)}`;
   const received = receivedAt.toISOString();
   const attachmentRows: {
     id: string;
@@ -195,9 +205,9 @@ export async function ingestRaw(
     ),
     env.DB.prepare(
       'INSERT OR IGNORE INTO contact_email_addresses(id,contact_id,address,first_seen_at) VALUES(?,?,?,?)'
-    ).bind(`email:${await hash(sender)}`, contactId, sender, received),
+    ).bind(senderEmailId, contactId, sender, received),
     env.DB.prepare('UPDATE contacts SET primary_email_id=COALESCE(primary_email_id,?) WHERE id=?').bind(
-      `email:${await hash(sender)}`,
+      senderEmailId,
       contactId
     ),
     env.DB.prepare(

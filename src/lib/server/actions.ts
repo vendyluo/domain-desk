@@ -150,12 +150,14 @@ export async function transitionNextAction(
         reason
       )
   ];
+  let guardOpportunity = false;
   if (row.opportunity_id && row.is_designated && (command === 'complete' || command === 'cancel')) {
     const opportunity = await db
       .prepare('SELECT state FROM opportunities WHERE id=?')
       .bind(row.opportunity_id)
       .first<{ state: string }>();
     if (opportunity?.state === 'active') {
+      guardOpportunity = true;
       if (input.replacement) {
         const replacement = cleanText(input.replacement, 'Replacement next action');
         const replacementId = `action:${crypto.randomUUID()}`;
@@ -208,7 +210,41 @@ export async function transitionNextAction(
       }
     }
   }
-  await db.batch(statements);
+  // Canaries: each asserts the state this command read; on a concurrent change the
+  // INSERT hits the existing primary key and D1 rolls back the whole batch.
+  statements.unshift(
+    db
+      .prepare(
+        'INSERT INTO next_actions(id,description,status,source_type,source_id,contact_id,created_by,created_at) SELECT ?,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM next_actions WHERE id=? AND status=?)'
+      )
+      .bind(id, '', '', '', '', '', '', '', id, row.status)
+  );
+  if (guardOpportunity)
+    statements.unshift(
+      db
+        .prepare(
+          'INSERT INTO opportunities(id,title,desired_outcome,contact_id,product_id,created_at,updated_at) SELECT ?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM opportunities WHERE id=? AND state=?)'
+        )
+        .bind(row.opportunity_id, '', '', '', '', '', '', row.opportunity_id, 'active')
+    );
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    const current = await db.prepare('SELECT status FROM next_actions WHERE id=?').bind(id).first<{ status: string }>();
+    if (current?.status !== row.status) {
+      throw new Error('Next action changed while the command was being applied.', { cause: error });
+    }
+    if (guardOpportunity) {
+      const opportunity = await db
+        .prepare('SELECT state FROM opportunities WHERE id=?')
+        .bind(row.opportunity_id)
+        .first<{ state: string }>();
+      if (opportunity?.state !== 'active') {
+        throw new Error('Opportunity changed while the command was being applied.', { cause: error });
+      }
+    }
+    throw error;
+  }
 }
 export async function listToday(db: DB, now = new Date()) {
   const today = iso(now).slice(0, 10),
@@ -217,7 +253,10 @@ export async function listToday(db: DB, now = new Date()) {
     .prepare(
       `SELECT na.*,ct.display_name,ce.address contact_email,c.subject,
         coalesce(p.name,op.name) product,coalesce(d.name,od.name) domain,
-        coalesce(mi.address,omi.address) mailbox,o.title opportunity_title
+        coalesce(mi.address,(SELECT omi.address FROM opportunity_conversations oc
+          JOIN mailbox_identities omi ON omi.id=oc.mailbox_identity_id
+          WHERE oc.opportunity_id=o.id ORDER BY oc.created_at,oc.conversation_id LIMIT 1)) mailbox,
+        o.title opportunity_title
        FROM next_actions na
        JOIN contacts ct ON ct.id=na.contact_id
        JOIN contact_email_addresses ce ON ce.id=ct.primary_email_id
@@ -226,10 +265,8 @@ export async function listToday(db: DB, now = new Date()) {
        LEFT JOIN products p ON p.id=mi.product_id LEFT JOIN domains d ON d.id=p.domain_id
        LEFT JOIN opportunities o ON o.id=na.opportunity_id
        LEFT JOIN products op ON op.id=o.product_id LEFT JOIN domains od ON od.id=op.domain_id
-       LEFT JOIN opportunity_conversations oc ON oc.opportunity_id=o.id
-       LEFT JOIN mailbox_identities omi ON omi.id=oc.mailbox_identity_id
-       WHERE na.status='open' AND (na.due_at<=? OR (na.opportunity_id IS NOT NULL AND na.is_designated=1))
-       GROUP BY na.id ORDER BY na.due_at,na.id`
+       WHERE na.status='open' AND (na.due_at IS NULL OR na.due_at<=? OR (na.opportunity_id IS NOT NULL AND na.is_designated=1))
+       ORDER BY na.due_at,na.id`
     )
     .bind(boundary)
     .all<Record<string, unknown>>();

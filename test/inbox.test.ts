@@ -25,3 +25,28 @@ describe('inbox services', () => {
     expect(await setHandled(env.DB, 'missing', true)).toBe(false);
   });
 });
+
+describe('inbox search scope', () => {
+  it('matches text in any message of a conversation, not only the latest', async () => {
+    const raw = (headers: string, body: string) => new TextEncoder().encode(`${headers}\r\n\r\n${body}`).buffer;
+    await ingestRaw(
+      env as Env,
+      'hello@example.com',
+      raw('From: A <a@x.test>\r\nTo: hello@example.com\r\nMessage-ID: <t1>\r\nSubject: Thread', 'FIRSTWORD opening'),
+      new Date('2026-01-01Z')
+    );
+    await ingestRaw(
+      env as Env,
+      'hello@example.com',
+      raw(
+        'From: A <a@x.test>\r\nTo: hello@example.com\r\nMessage-ID: <t2>\r\nIn-Reply-To: <t1>\r\nReferences: <t1>\r\nSubject: Re: Thread',
+        'SECONDWORD reply'
+      ),
+      new Date('2026-01-02Z')
+    );
+    expect((await listInbox(env.DB, {})).rows).toHaveLength(1);
+    expect((await listInbox(env.DB, { q: 'FIRSTWORD' })).rows).toHaveLength(1);
+    expect((await listInbox(env.DB, { q: 'SECONDWORD' })).rows).toHaveLength(1);
+    expect((await listInbox(env.DB, { q: 'NOSUCHWORD' })).rows).toHaveLength(0);
+  });
+});

@@ -209,3 +209,75 @@ describe('Slice 3B opportunities', () => {
     expect(audit.find((event) => event.event_type === 'opportunity.lost')?.reason).toBe('Budget removed');
   });
 });
+
+describe('concurrent lifecycle safety', () => {
+  it('writes nothing when the opportunity changed between read and batch', async () => {
+    const { id } = await created();
+    await transitionOpportunity(env.DB, id, 'qualify');
+    const original = env.DB.batch.bind(env.DB);
+    try {
+      (env.DB as any).batch = async (statements: any[]) => {
+        await env.DB.prepare("UPDATE opportunities SET state='new' WHERE id=?").bind(id).run();
+        return original(statements);
+      };
+      await expect(transitionOpportunity(env.DB, id, 'activate', { nextAction: 'Ship it' })).rejects.toThrow(
+        /changed while/
+      );
+    } finally {
+      (env.DB as any).batch = original;
+    }
+    expect((await env.DB.prepare('SELECT state FROM opportunities WHERE id=?').bind(id).first<any>()).state).toBe(
+      'new'
+    );
+    expect(
+      (await env.DB.prepare('SELECT count(*) n FROM next_actions WHERE opportunity_id=?').bind(id).first<any>()).n
+    ).toBe(0);
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT count(*) n FROM activity_events WHERE subject_id=? AND event_type='opportunity.activated'"
+        )
+          .bind(id)
+          .first<any>()
+      ).n
+    ).toBe(0);
+  });
+
+  it('rejects designated-action completion untouched when the opportunity exited active concurrently', async () => {
+    const { id } = await created();
+    await transitionOpportunity(env.DB, id, 'qualify');
+    await transitionOpportunity(env.DB, id, 'activate', { nextAction: 'Call' });
+    const action = (await env.DB.prepare('SELECT id FROM next_actions WHERE opportunity_id=? AND is_designated=1')
+      .bind(id)
+      .first<{ id: string }>())!;
+    const original = env.DB.batch.bind(env.DB);
+    try {
+      (env.DB as any).batch = async (statements: any[]) => {
+        await env.DB.prepare(
+          "UPDATE opportunities SET state='won',outcome_reason='raced',outcome_at='2026-07-21T00:00:00Z' WHERE id=?"
+        )
+          .bind(id)
+          .run();
+        return original(statements);
+      };
+      await expect(transitionNextAction(env.DB, action.id, 'complete', { replacement: 'Send terms' })).rejects.toThrow(
+        /changed while/
+      );
+    } finally {
+      (env.DB as any).batch = original;
+    }
+    expect(
+      await env.DB.prepare('SELECT status,is_designated FROM next_actions WHERE id=?').bind(action.id).first()
+    ).toMatchObject({ status: 'open', is_designated: 1 });
+    expect(
+      (await env.DB.prepare('SELECT count(*) n FROM next_actions WHERE opportunity_id=?').bind(id).first<any>()).n
+    ).toBe(1);
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT count(*) n FROM activity_events WHERE event_type IN ('next_action.completed','next_action.created') AND occurred_at>'2026-07-20T12:00:00Z'"
+        ).first<any>()
+      ).n
+    ).toBe(1);
+  });
+});
