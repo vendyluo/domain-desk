@@ -70,6 +70,17 @@
             <div class="min-w-0">
               <strong class="block text-sm">{message.sender_name || message.sender_address}</strong>
               <p class="mt-0.5 text-xs text-muted">{message.sender_address}</p>
+              {#if message.direction === 'outbound'}
+                <p
+                  class={`mt-1 text-xs font-semibold ${message.delivery_status === 'failed' ? 'text-copper-dark' : 'text-teal'}`}
+                >
+                  {message.delivery_status === 'sent'
+                    ? 'Reply sent'
+                    : message.delivery_status === 'sending'
+                      ? 'Reply · delivery not yet confirmed'
+                      : `Reply failed · ${message.delivery_error || 'unknown error'}`}
+                </p>
+              {/if}
             </div>
             <time
               class="shrink-0 text-[0.72rem] text-muted"
@@ -138,6 +149,21 @@
           </details>
         </article>
       {/each}
+
+      <form method="POST" action="?/reply" class="mt-2 grid gap-2 border-t border-line pt-5">
+        <label for="reply-body" class="text-sm font-semibold">Reply as {conversation.mailbox}</label>
+        <textarea
+          id="reply-body"
+          required
+          name="body"
+          rows="5"
+          placeholder="Write a plain-text reply…"
+          class="rounded border border-line bg-white p-3 text-sm"></textarea>
+        <button
+          class="justify-self-start rounded-md border border-teal-dark bg-teal px-4 py-2 text-sm font-semibold text-white hover:bg-teal-dark"
+          >Send reply</button
+        >
+      </form>
     </section>
 
     <aside

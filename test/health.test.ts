@@ -12,10 +12,12 @@ describe('deployment health', () => {
         migrations: [
           { name: '0001 · inbound CRM graph', ready: true, missing: [] },
           { name: '0002 · follow-up and contact history', ready: true, missing: [] },
-          { name: '0003 · opportunities', ready: true, missing: [] }
+          { name: '0003 · opportunities', ready: true, missing: [] },
+          { name: '0004 · outbound replies', ready: true, missing: [] }
         ]
       },
       attachments: { ready: true },
+      outbound: { configured: Boolean((env as unknown as Env).EMAIL) },
       access: { mode: 'local bypass', configured: true }
     });
   });

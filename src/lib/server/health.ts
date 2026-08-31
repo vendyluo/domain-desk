@@ -19,15 +19,27 @@ const migrationTables = {
 export type DeploymentHealth = {
   database: { ready: boolean; migrations: { name: string; ready: boolean; missing: string[] }[] };
   attachments: { ready: boolean };
+  outbound: { configured: boolean };
   access: { mode: 'local bypass' | 'Cloudflare Access'; configured: boolean };
 };
 
 export async function deploymentHealth(env: Env): Promise<DeploymentHealth> {
   const tables = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{ name: string }>();
   const present = new Set(tables.results.map((row) => row.name));
-  const migrations = Object.entries(migrationTables).map(([name, required]) => {
-    const missing = required.filter((table) => !present.has(table));
-    return { name, ready: missing.length === 0, missing };
+  const migrations: { name: string; ready: boolean; missing: string[] }[] = Object.entries(migrationTables).map(
+    ([name, required]) => {
+      const missing: string[] = required.filter((table) => !present.has(table));
+      return { name, ready: missing.length === 0, missing };
+    }
+  );
+  const outboundColumns = await env.DB.prepare(
+    "SELECT count(*) n FROM pragma_table_info('messages') WHERE name IN ('direction','delivery_status','delivery_error')"
+  ).first<{ n: number }>();
+  const outboundReady = outboundColumns?.n === 3;
+  migrations.push({
+    name: '0004 · outbound replies',
+    ready: outboundReady,
+    missing: outboundReady ? [] : ['messages outbound columns']
   });
 
   let attachmentsReady: boolean;
@@ -48,6 +60,7 @@ export async function deploymentHealth(env: Env): Promise<DeploymentHealth> {
   return {
     database: { ready: migrations.every((migration) => migration.ready), migrations },
     attachments: { ready: attachmentsReady },
+    outbound: { configured: Boolean(env.EMAIL) },
     access: { mode: local ? 'local bypass' : 'Cloudflare Access', configured: local || accessConfigured }
   };
 }

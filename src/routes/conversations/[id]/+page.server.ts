@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { getConversation, setHandled } from '$lib/server/inbox';
+import { sendReply } from '$lib/server/outbound';
 import { createNextAction } from '$lib/server/actions';
 import { createOpportunity } from '$lib/server/opportunities';
 import { redirect } from '@sveltejs/kit';
@@ -10,6 +11,15 @@ export const load: PageServerLoad = async ({ params, platform }) => {
   return detail;
 };
 export const actions: Actions = {
+  reply: async ({ request, params, platform }) => {
+    const f = await request.formData();
+    try {
+      await sendReply(platform!.env, params.id, f.get('body'));
+      return { success: true };
+    } catch (e) {
+      return fail(400, { message: e instanceof Error ? e.message : 'Send failed.' });
+    }
+  },
   opportunity: async ({ request, params, platform }) => {
     const f = await request.formData();
     try {

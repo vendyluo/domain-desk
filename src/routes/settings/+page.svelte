@@ -40,6 +40,21 @@
         </div>
       </section>
       <section class="grid gap-2 py-6 min-[720px]:grid-cols-[180px_minmax(0,1fr)] min-[720px]:gap-8">
+        <h2 class="font-reading text-lg font-semibold">Outbound replies</h2>
+        <div class="text-sm leading-relaxed text-ink-soft">
+          <p>
+            <strong class={data.outbound.configured ? 'text-teal-dark' : 'text-copper-dark'}
+              >{data.outbound.configured ? 'Configured' : 'Not configured'}</strong
+            >
+            · <code class="rounded bg-paper px-1.5 py-0.5 text-xs">EMAIL</code> send binding
+          </p>
+          <p class="mt-2">
+            Replies send through Cloudflare Email Service from the conversation's mailbox address. Each send is recorded
+            before delivery and every outcome — sent, failed, or unconfirmed — stays visible on the message.
+          </p>
+        </div>
+      </section>
+      <section class="grid gap-2 py-6 min-[720px]:grid-cols-[180px_minmax(0,1fr)] min-[720px]:gap-8">
         <h2 class="font-reading text-lg font-semibold">Access protection</h2>
         <div class="text-sm leading-relaxed text-ink-soft">
           <p>

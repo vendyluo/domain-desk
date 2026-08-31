@@ -17,6 +17,9 @@ migrations_dir = "migrations"
 binding = "ATTACHMENTS"
 bucket_name = "domain-desk-attachments"
 
+[[send_email]]
+name = "EMAIL"
+
 [vars]
 LOCAL_DEV = "false"
 ACCESS_TEAM_DOMAIN = "https://your-team.cloudflareaccess.com"
@@ -36,3 +39,6 @@ migrations_dir = "migrations"
 [[env.local.r2_buckets]]
 binding = "ATTACHMENTS"
 bucket_name = "domain-desk-attachments"
+
+[[env.local.send_email]]
+name = "EMAIL"

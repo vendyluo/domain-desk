@@ -1,6 +1,7 @@
 export interface Env {
   DB: D1Database;
   ATTACHMENTS: R2Bucket;
+  EMAIL?: SendEmail;
   LOCAL_DEV: string;
   ACCESS_TEAM_DOMAIN: string;
   ACCESS_AUD: string;

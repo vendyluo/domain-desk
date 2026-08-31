@@ -3,7 +3,7 @@ import type { Env } from './types';
 import { IngestError } from './types';
 
 const MAX_RAW = 10 * 1024 * 1024;
-const normId = (value?: string | null) => value?.trim().replace(/^<|>$/g, '').toLowerCase() || null;
+export const normId = (value?: string | null) => value?.trim().replace(/^<|>$/g, '').toLowerCase() || null;
 const hex = (data: ArrayBuffer) => [...new Uint8Array(data)].map((x) => x.toString(16).padStart(2, '0')).join('');
 type ParsedAddress = { address: string; name: string };
 

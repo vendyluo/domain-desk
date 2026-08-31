@@ -65,6 +65,34 @@ Send a plain-text test email with a small attachment from an external account. C
 
 Settings performs read-only probes of the D1 schema, all three migration-owned table groups, the R2 binding, and the configured Access mode. It displays status only, never issuer, audience, credentials, or other secret values.
 
+## Outbound replies (Cloudflare Email Service)
+
+Replies are sent from the conversation's mailbox address through the `EMAIL` send binding
+(already declared in `wrangler.toml`). Before the first reply from a domain:
+
+```sh
+npx wrangler email sending list
+npx wrangler email sending enable example.com   # per sending domain; Workers paid plan
+```
+
+Behavior and guarantees:
+
+- The reply is recorded in D1 **before** the external send. Its `delivery_status` is `sending`
+  until the service confirms; a crash between send and confirmation leaves the message visibly
+  unconfirmed instead of silently losing the record of an external effect.
+- Success stores the returned message id and marks `sent`; failure marks `failed` with the
+  `E_*` error code on the message and in the activity history. Nothing retries automatically.
+- Replies carry `In-Reply-To`/`References` from the latest inbound message so the customer's
+  client threads them. After the first deployment, verify threading end to end: send a reply,
+  answer it from an external mailbox, and confirm the answer lands in the same conversation
+  (this also confirms the service's returned message id matches the delivered `Message-ID`).
+- Only plain text is sent. Sending is unavailable (with an explicit error) when the binding or
+  domain onboarding is missing; the Settings page shows the binding status.
+
+If a reply fails with `E_SENDER_NOT_VERIFIED` or `E_SENDER_DOMAIN_NOT_AVAILABLE`, complete
+`wrangler email sending enable` for that domain. `E_RECIPIENT_SUPPRESSED` means the recipient
+previously bounced or complained; do not force resends.
+
 ## Verified backup and recovery boundary
 
 Create a new backup directory from either local or remote resources. The command is read-only: it exports the complete D1 schema/data, queries canonical attachment references, downloads exactly those R2 objects, verifies D1 size and SHA-256 metadata, and writes `manifest.json`. It refuses an ambiguous source, an existing destination, unsafe object paths, missing objects, and hash/size drift. Unreferenced R2 objects are intentionally excluded.
