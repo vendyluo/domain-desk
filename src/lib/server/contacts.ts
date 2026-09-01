@@ -245,6 +245,15 @@ export async function mergeContacts(
     moved_counts: preview.counts
   };
   await db.batch([
+    // Canary: if the survivor is no longer an unmerged contact when this batch
+    // lands, the SELECT produces a row whose explicit NULL violates
+    // contacts.created_at NOT NULL and D1 rolls the whole batch back. Without
+    // it, two concurrent opposite-direction merges could commit a merge cycle.
+    db
+      .prepare(
+        'INSERT INTO contacts(id,created_at) SELECT ?,NULL WHERE NOT EXISTS(SELECT 1 FROM contacts WHERE id=? AND merged_into_id IS NULL)'
+      )
+      .bind(survivorId, survivorId),
     db.prepare('UPDATE contact_email_addresses SET contact_id=? WHERE contact_id=?').bind(survivorId, duplicateId),
     db.prepare('UPDATE conversations SET contact_id=? WHERE contact_id=?').bind(survivorId, duplicateId),
     db.prepare('UPDATE messages SET contact_id=? WHERE contact_id=?').bind(survivorId, duplicateId),

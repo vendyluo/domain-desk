@@ -16,7 +16,9 @@ type InboundRow = {
   sender_address: string;
   sender_name: string | null;
   message_id: string | null;
+  message_id_raw: string | null;
   references_json: string;
+  references_raw_json: string | null;
 };
 
 function sendEvent(
@@ -73,8 +75,8 @@ export async function sendReply(
   if (!conversation) throw new Error('Conversation not found.');
   const inbound = await db
     .prepare(
-      `SELECT sender_address,sender_name,message_id,references_json FROM messages
-       WHERE conversation_id=? AND direction='inbound' ORDER BY received_at DESC,id DESC LIMIT 1`
+      `SELECT sender_address,sender_name,message_id,message_id_raw,references_json,references_raw_json
+       FROM messages WHERE conversation_id=? AND direction='inbound' ORDER BY received_at DESC,id DESC LIMIT 1`
     )
     .bind(conversationId)
     .first<InboundRow>();
@@ -87,10 +89,15 @@ export async function sendReply(
       ? conversation.subject
       : `Re: ${conversation.subject}`
     : 'Re: (no subject)';
-  const references: string[] = JSON.parse(inbound.references_json || '[]');
-  if (inbound.message_id && !references.includes(inbound.message_id)) references.push(inbound.message_id);
+  // Threading headers must carry the sender's original casing: RFC 5322 msg-ids
+  // are case-sensitive, so the normalized copies used for matching would leave
+  // the recipient's client unable to attach this reply to its own thread. Rows
+  // written before migration 0006 fall back to the normalized values.
+  const parentId = inbound.message_id_raw ?? inbound.message_id;
+  const references: string[] = JSON.parse(inbound.references_raw_json || inbound.references_json || '[]');
+  if (parentId && !references.includes(parentId)) references.push(parentId);
   const headers: Record<string, string> = {};
-  if (inbound.message_id) headers['In-Reply-To'] = `<${inbound.message_id}>`;
+  if (parentId) headers['In-Reply-To'] = `<${parentId}>`;
   if (references.length)
     headers['References'] = references
       .slice(-MAX_REFERENCES)
@@ -105,8 +112,9 @@ export async function sendReply(
       .prepare(
         `INSERT INTO messages
          (id,conversation_id,mailbox_identity_id,contact_id,dedupe_key,in_reply_to,references_json,
-          sender_address,sender_name,subject,text_body,sent_at,received_at,ingested_at,direction,delivery_status)
-         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'outbound','sending')`
+          references_raw_json,sender_address,sender_name,subject,text_body,sent_at,received_at,ingested_at,
+          direction,delivery_status)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'outbound','sending')`
       )
       .bind(
         id,
@@ -115,6 +123,7 @@ export async function sendReply(
         conversation.contact_id,
         `out:${id}`,
         inbound.message_id,
+        JSON.stringify(references.map((ref) => normId(ref)).filter(Boolean)),
         JSON.stringify(references),
         conversation.mailbox_address,
         conversation.mailbox_name,

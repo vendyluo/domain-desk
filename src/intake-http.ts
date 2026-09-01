@@ -34,7 +34,15 @@ export async function handleIntakeRequest(request: Request, env: Env, verify?: T
       }
     });
   }
-  const mailboxId = decodeURIComponent(new URL(request.url).pathname.slice('/intake/'.length));
+  const encoded = new URL(request.url).pathname.slice('/intake/'.length);
+  let mailboxId: string;
+  try {
+    mailboxId = decodeURIComponent(encoded);
+  } catch {
+    // Malformed percent-encoding is attacker-controllable: answer with the same
+    // bare code this surface uses everywhere else, never an unhandled throw.
+    return new Response('unknown_mailbox', { status: 404, headers: cors(origin) });
+  }
   let form: FormData;
   try {
     form = await request.formData();

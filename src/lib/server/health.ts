@@ -24,6 +24,21 @@ export type DeploymentHealth = {
   access: { mode: 'local bypass' | 'Cloudflare Access'; configured: boolean };
 };
 
+// Settings must stay renderable on exactly the unmigrated database it reports
+// on, so a missing table yields an empty list rather than a failed page load.
+export async function intakeMailboxes(db: Env['DB']): Promise<{ id: string; address: string; domain: string }[]> {
+  try {
+    const rows = await db
+      .prepare(
+        'SELECT mi.id,mi.address,d.name domain FROM mailbox_identities mi JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id ORDER BY mi.address'
+      )
+      .all<{ id: string; address: string; domain: string }>();
+    return rows.results;
+  } catch {
+    return [];
+  }
+}
+
 export async function deploymentHealth(env: Env): Promise<DeploymentHealth> {
   const tables = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{ name: string }>();
   const present = new Set(tables.results.map((row) => row.name));
@@ -50,6 +65,15 @@ export async function deploymentHealth(env: Env): Promise<DeploymentHealth> {
     name: '0005 · form intake',
     ready: intakeReady,
     missing: intakeReady ? [] : ['messages.channel']
+  });
+  const threadColumns = await env.DB.prepare(
+    "SELECT count(*) n FROM pragma_table_info('messages') WHERE name IN ('message_id_raw','references_raw_json')"
+  ).first<{ n: number }>();
+  const threadReady = threadColumns?.n === 2;
+  migrations.push({
+    name: '0006 · reply thread fidelity',
+    ready: threadReady,
+    missing: threadReady ? [] : ['messages raw thread id columns']
   });
 
   let attachmentsReady: boolean;

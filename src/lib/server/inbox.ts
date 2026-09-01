@@ -42,12 +42,12 @@ export async function listInbox(db: Env['DB'], filters: InboxFilters) {
     }
   if (filters.q?.trim()) {
     where.push(
-      "(c.subject LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM messages ms WHERE ms.conversation_id=c.id AND (ms.sender_address LIKE ? ESCAPE '\\' OR ms.sender_name LIKE ? ESCAPE '\\' OR ms.text_body LIKE ? ESCAPE '\\')))"
+      "(c.subject LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM messages ms WHERE ms.conversation_id=c.id AND ms.direction='inbound' AND (ms.sender_address LIKE ? ESCAPE '\\' OR ms.sender_name LIKE ? ESCAPE '\\' OR ms.text_body LIKE ? ESCAPE '\\')))"
     );
     const q = `%${filters.q.trim().replace(/[\\%_]/g, '\\$&')}%`;
     values.push(q, q, q, q);
   }
-  const sql = `SELECT c.id,c.subject,c.needs_attention,c.updated_at,m.sender_address,m.sender_name,substr(replace(replace(m.text_body,char(10),' '),char(13),' '),1,180) preview,mi.address mailbox,mi.id mailbox_id,p.name product,p.id product_id,d.name domain,d.id domain_id,(SELECT count(*) FROM attachments a JOIN messages am ON am.id=a.message_id WHERE am.conversation_id=c.id) attachment_count FROM conversations c JOIN mailbox_identities mi ON mi.id=c.mailbox_identity_id JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id JOIN messages m ON m.id=(SELECT id FROM messages WHERE conversation_id=c.id ORDER BY received_at DESC,id DESC LIMIT 1) ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY c.updated_at DESC,c.id DESC`;
+  const sql = `SELECT c.id,c.subject,c.needs_attention,c.updated_at,m.sender_address,m.sender_name,substr(replace(replace(m.text_body,char(10),' '),char(13),' '),1,180) preview,mi.address mailbox,mi.id mailbox_id,p.name product,p.id product_id,d.name domain,d.id domain_id,(SELECT count(*) FROM attachments a JOIN messages am ON am.id=a.message_id WHERE am.conversation_id=c.id) attachment_count FROM conversations c JOIN mailbox_identities mi ON mi.id=c.mailbox_identity_id JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id JOIN messages m ON m.id=(SELECT id FROM messages WHERE conversation_id=c.id AND direction='inbound' ORDER BY received_at DESC,id DESC LIMIT 1) ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY c.updated_at DESC,c.id DESC`;
   const rows = await db
     .prepare(sql)
     .bind(...values)

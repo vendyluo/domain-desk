@@ -275,9 +275,13 @@ export async function listToday(db: DB, now = new Date()) {
       `SELECT c.id,c.subject,c.updated_at,ct.display_name,ce.address contact_email,mi.address mailbox,p.name product,d.name domain FROM conversations c JOIN contacts ct ON ct.id=c.contact_id JOIN contact_email_addresses ce ON ce.id=ct.primary_email_id JOIN mailbox_identities mi ON mi.id=c.mailbox_identity_id JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id WHERE c.needs_attention=1 ORDER BY c.updated_at,c.id`
     )
     .all<Record<string, unknown>>();
+  const isOverdue = (row: Record<string, unknown>) => Boolean(row.due_at) && String(row.due_at).slice(0, 10) < today;
   return {
-    overdue: actions.results.filter((x) => x.due_at && String(x.due_at).slice(0, 10) < today),
-    due: actions.results.filter((x) => !x.due_at || String(x.due_at).slice(0, 10) === today),
+    overdue: actions.results.filter(isOverdue),
+    // Everything the query returned that is not overdue belongs here, including a
+    // designated opportunity action dated in the future: the WHERE clause keeps
+    // those deliberately, so dropping them would hide the opportunity entirely.
+    due: actions.results.filter((row) => !isOverdue(row)),
     inbound: inbound.results,
     today
   };

@@ -7,14 +7,21 @@ export const normId = (value?: string | null) => value?.trim().replace(/^<|>$/g,
 const hex = (data: ArrayBuffer) => [...new Uint8Array(data)].map((x) => x.toString(16).padStart(2, '0')).join('');
 type ParsedAddress = { address: string; name: string };
 
-function messageIds(value?: string): string[] {
+// Message ids exactly as written by the sender: brackets stripped and trimmed,
+// but never case-folded. RFC 5322 msg-ids are case-sensitive, so replies must
+// quote them verbatim even though matching uses the normalized form.
+function messageIdsRaw(value?: string): string[] {
   if (!value) return [];
-  const bracketed = [...value.matchAll(/<([^<>]+)>/g)]
-    .map((match) => normId(match[1]))
-    .filter((id): id is string => !!id);
+  const bracketed = [...value.matchAll(/<([^<>]+)>/g)].map((match) => match[1].trim()).filter((id) => id.length > 0);
   if (bracketed.length) return bracketed;
-  const fallback = normId(value);
+  const fallback = value.trim().replace(/^<|>$/g, '');
   return fallback ? [fallback] : [];
+}
+
+function messageIds(value?: string): string[] {
+  return messageIdsRaw(value)
+    .map((id) => normId(id))
+    .filter((id): id is string => !!id);
 }
 
 export async function hash(data: ArrayBuffer | ArrayBufferView | string) {
@@ -80,12 +87,15 @@ function htmlToText(html: string): string {
 // Resolve an email address to its canonical contact: follow the merge chain to the
 // surviving contact, or derive the deterministic id for a brand-new address.
 export async function resolveContactId(db: Env['DB'], address: string): Promise<string> {
+  // The depth bound keeps a corrupted merge cycle from spinning forever: the
+  // walk yields no survivor, and the caller falls back to the deterministic id
+  // so mail is still filed instead of failing permanently.
   const canonical = await db
     .prepare(
-      `WITH RECURSIVE canon(id,merged_into_id) AS (
-         SELECT c.id,c.merged_into_id FROM contact_email_addresses ce JOIN contacts c ON c.id=ce.contact_id WHERE ce.address=?
+      `WITH RECURSIVE canon(id,merged_into_id,depth) AS (
+         SELECT c.id,c.merged_into_id,0 FROM contact_email_addresses ce JOIN contacts c ON c.id=ce.contact_id WHERE ce.address=?
          UNION ALL
-         SELECT c.id,c.merged_into_id FROM contacts c JOIN canon ON c.id=canon.merged_into_id
+         SELECT c.id,c.merged_into_id,canon.depth+1 FROM contacts c JOIN canon ON c.id=canon.merged_into_id WHERE canon.depth < 32
        ) SELECT id FROM canon WHERE merged_into_id IS NULL`
     )
     .bind(address)
@@ -116,6 +126,132 @@ export async function readBounded(stream: ReadableStream<Uint8Array>, limit = MA
   return out.buffer;
 }
 
+export type InboundRecipient = {
+  kind: 'to' | 'cc' | 'bcc';
+  address: string;
+  name: string | null;
+  mailboxIdentityId: string | null;
+};
+
+/** One inbound message, normalized by its channel and ready to persist. */
+export type InboundRecord = {
+  mailboxId: string;
+  contactId: string;
+  senderAddress: string;
+  senderName: string | null;
+  conversationId: string;
+  messageId: string;
+  messageKey: string;
+  dedupeKey: string;
+  subject: string | null;
+  textBody: string | null;
+  sentAt: string | null;
+  receivedAt: string;
+  ingestedAt: string;
+  channel: 'email' | 'form';
+  rfcMessageId?: string | null;
+  rfcMessageIdRaw?: string | null;
+  inReplyTo?: string | null;
+  references?: string[];
+  referencesRaw?: string[];
+  recipients: InboundRecipient[];
+};
+
+/**
+ * Write one inbound message and everything it implies: the canonical contact and
+ * its address, the conversation (created or touched), the message, and its
+ * recipients. Every inbound channel goes through here so the contact-identity
+ * and attribution invariants have exactly one implementation. `extra` carries
+ * channel-specific rows (attachments) into the same atomic batch. A losing
+ * concurrent duplicate is recovered by re-reading the dedupe key.
+ */
+export async function persistInbound(
+  db: Env['DB'],
+  record: InboundRecord,
+  extra: D1PreparedStatement[] = []
+): Promise<{ id: string; conversationId: string; duplicate: boolean }> {
+  const senderEmailId = `email:${await hash(record.senderAddress)}`;
+  const statements: D1PreparedStatement[] = [
+    db.prepare('INSERT OR IGNORE INTO contacts(id,display_name) VALUES(?,?)').bind(record.contactId, record.senderName),
+    db
+      .prepare('INSERT OR IGNORE INTO contact_email_addresses(id,contact_id,address,first_seen_at) VALUES(?,?,?,?)')
+      .bind(senderEmailId, record.contactId, record.senderAddress, record.receivedAt),
+    db
+      .prepare('UPDATE contacts SET primary_email_id=COALESCE(primary_email_id,?) WHERE id=?')
+      .bind(senderEmailId, record.contactId),
+    db
+      .prepare(
+        'INSERT OR IGNORE INTO conversations(id,mailbox_identity_id,contact_id,subject,created_at,updated_at) VALUES(?,?,?,?,?,?)'
+      )
+      .bind(
+        record.conversationId,
+        record.mailboxId,
+        record.contactId,
+        record.subject,
+        record.receivedAt,
+        record.receivedAt
+      ),
+    db
+      .prepare('UPDATE conversations SET updated_at=?,needs_attention=1 WHERE id=?')
+      .bind(record.receivedAt, record.conversationId),
+    db
+      .prepare(
+        `INSERT INTO messages
+         (id,conversation_id,mailbox_identity_id,contact_id,dedupe_key,message_id,message_id_raw,in_reply_to,
+          references_json,references_raw_json,sender_address,sender_name,subject,text_body,sent_at,received_at,
+          ingested_at,channel)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      )
+      .bind(
+        record.messageId,
+        record.conversationId,
+        record.mailboxId,
+        record.contactId,
+        record.dedupeKey,
+        record.rfcMessageId ?? null,
+        record.rfcMessageIdRaw ?? null,
+        record.inReplyTo ?? null,
+        JSON.stringify(record.references ?? []),
+        JSON.stringify(record.referencesRaw ?? []),
+        record.senderAddress,
+        record.senderName,
+        record.subject,
+        record.textBody,
+        record.sentAt,
+        record.receivedAt,
+        record.ingestedAt,
+        record.channel
+      )
+  ];
+  record.recipients.forEach((recipient, index) =>
+    statements.push(
+      db
+        .prepare(
+          'INSERT INTO message_recipients(id,message_id,mailbox_identity_id,kind,address,display_name) VALUES(?,?,?,?,?,?)'
+        )
+        .bind(
+          `rcpt:${record.messageKey}:${index}`,
+          record.messageId,
+          recipient.mailboxIdentityId,
+          recipient.kind,
+          recipient.address,
+          recipient.name
+        )
+    )
+  );
+  try {
+    await db.batch([...statements, ...extra]);
+  } catch (error) {
+    const duplicate = await db
+      .prepare('SELECT id,conversation_id FROM messages WHERE mailbox_identity_id=? AND dedupe_key=?')
+      .bind(record.mailboxId, record.dedupeKey)
+      .first<{ id: string; conversation_id: string }>();
+    if (duplicate) return { id: duplicate.id, conversationId: duplicate.conversation_id, duplicate: true };
+    throw error;
+  }
+  return { id: record.messageId, conversationId: record.conversationId, duplicate: false };
+}
+
 export async function ingestRaw(
   env: Env,
   envelopeTo: string,
@@ -136,7 +272,9 @@ export async function ingestRaw(
   const sender = email.from?.address?.trim().toLowerCase();
   if (!sender) throw new IngestError('malformed_mime', 'A valid From address is required');
   const messageId = normId(email.messageId);
+  const messageIdRaw = email.messageId?.trim().replace(/^<|>$/g, '') || null;
   const refs = messageIds(email.references);
+  const refsRaw = messageIdsRaw(email.references);
   const replyIds = messageIds(email.inReplyTo);
   const inReplyTo = replyIds.at(-1) ?? null;
   const recipientGroups = [
@@ -193,7 +331,6 @@ export async function ingestRaw(
   const messageKey = await hash(`${mailbox.id}\n${dedupeKey}`);
   const messageDbId = `msg:${messageKey}`;
   conversationId ??= `conv:${messageKey}`;
-  const senderEmailId = `email:${await hash(sender)}`;
   const contactId = await resolveContactId(env.DB, sender);
   const received = receivedAt.toISOString();
   const attachmentRows: {
@@ -234,92 +371,65 @@ export async function ingestRaw(
   // a plain-text extraction of the HTML is stored instead. Raw HTML is never
   // stored or rendered, and the dedupe fingerprint keeps hashing the raw parts.
   const textBody = email.text?.trim() ? email.text : htmlToText(email.html ?? '') || null;
-  const statements: D1PreparedStatement[] = [
-    env.DB.prepare('INSERT OR IGNORE INTO contacts(id,display_name) VALUES(?,?)').bind(
-      contactId,
-      email.from?.name?.trim() || null
-    ),
-    env.DB.prepare(
-      'INSERT OR IGNORE INTO contact_email_addresses(id,contact_id,address,first_seen_at) VALUES(?,?,?,?)'
-    ).bind(senderEmailId, contactId, sender, received),
-    env.DB.prepare('UPDATE contacts SET primary_email_id=COALESCE(primary_email_id,?) WHERE id=?').bind(
-      senderEmailId,
-      contactId
-    ),
-    env.DB.prepare(
-      'INSERT OR IGNORE INTO conversations(id,mailbox_identity_id,contact_id,subject,created_at,updated_at) VALUES(?,?,?,?,?,?)'
-    ).bind(conversationId, mailbox.id, contactId, email.subject || null, received, received),
-    env.DB.prepare('UPDATE conversations SET updated_at=?,needs_attention=1 WHERE id=?').bind(received, conversationId),
-    env.DB.prepare(
-      'INSERT INTO messages(id,conversation_id,mailbox_identity_id,contact_id,dedupe_key,message_id,in_reply_to,references_json,sender_address,sender_name,subject,text_body,sent_at,received_at,ingested_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-    ).bind(
-      messageDbId,
-      conversationId,
-      mailbox.id,
-      contactId,
-      dedupeKey,
-      messageId,
-      inReplyTo,
-      JSON.stringify(refs),
-      sender,
-      email.from?.name?.trim() || null,
-      email.subject || null,
-      textBody,
-      emailDate(email.date),
-      received,
-      ingestedAt
-    )
-  ];
-  let ri = 0;
+  const recipients: InboundRecipient[] = [];
   let hasEnvelopeRecipient = false;
-  for (const [kind, recipients] of recipientGroups)
-    for (const recipient of recipients) {
+  for (const [kind, group] of recipientGroups)
+    for (const recipient of group) {
       const ownedMailboxId = recipient.address === mailboxAddress ? mailbox.id : null;
       if (ownedMailboxId) hasEnvelopeRecipient = true;
-      statements.push(
-        env.DB.prepare(
-          'INSERT INTO message_recipients(id,message_id,mailbox_identity_id,kind,address,display_name) VALUES(?,?,?,?,?,?)'
-        ).bind(
-          `rcpt:${messageKey}:${ri++}`,
-          messageDbId,
-          ownedMailboxId,
-          kind,
-          recipient.address,
-          recipient.name || null
-        )
-      );
+      recipients.push({
+        kind,
+        address: recipient.address,
+        name: recipient.name || null,
+        mailboxIdentityId: ownedMailboxId
+      });
     }
+  // The envelope recipient is canonical attribution even when no header names it.
   if (!hasEnvelopeRecipient)
-    statements.push(
-      env.DB.prepare(
-        'INSERT INTO message_recipients(id,message_id,mailbox_identity_id,kind,address,display_name) VALUES(?,?,?,?,?,?)'
-      ).bind(`rcpt:${messageKey}:${ri++}`, messageDbId, mailbox.id, 'bcc', mailboxAddress, null)
-    );
-  for (const row of attachmentRows)
-    statements.push(
-      env.DB.prepare(
-        'INSERT INTO attachments(id,message_id,filename,media_type,size,content_hash,object_key,content_id,disposition) VALUES(?,?,?,?,?,?,?,?,?)'
-      ).bind(
-        row.id,
-        messageDbId,
-        row.name || null,
-        row.type,
-        row.size,
-        row.digest,
-        row.key,
-        row.contentId || null,
-        row.disposition
-      )
-    );
-  try {
-    await env.DB.batch(statements);
-  } catch (error) {
-    const duplicate = await env.DB.prepare('SELECT id FROM messages WHERE mailbox_identity_id=? AND dedupe_key=?')
-      .bind(mailbox.id, dedupeKey)
-      .first<{ id: string }>();
-    if (duplicate) return { id: duplicate.id, duplicate: true };
-    throw error;
-  }
+    recipients.push({ kind: 'bcc', address: mailboxAddress, name: null, mailboxIdentityId: mailbox.id });
+
+  const attachmentStatements = attachmentRows.map((row) =>
+    env.DB.prepare(
+      'INSERT INTO attachments(id,message_id,filename,media_type,size,content_hash,object_key,content_id,disposition) VALUES(?,?,?,?,?,?,?,?,?)'
+    ).bind(
+      row.id,
+      messageDbId,
+      row.name || null,
+      row.type,
+      row.size,
+      row.digest,
+      row.key,
+      row.contentId || null,
+      row.disposition
+    )
+  );
+  const persisted = await persistInbound(
+    env.DB,
+    {
+      mailboxId: mailbox.id,
+      contactId,
+      senderAddress: sender,
+      senderName: email.from?.name?.trim() || null,
+      conversationId,
+      messageId: messageDbId,
+      messageKey,
+      dedupeKey,
+      subject: email.subject || null,
+      textBody,
+      sentAt: emailDate(email.date),
+      receivedAt: received,
+      ingestedAt,
+      channel: 'email',
+      rfcMessageId: messageId,
+      rfcMessageIdRaw: messageIdRaw,
+      inReplyTo,
+      references: refs,
+      referencesRaw: refsRaw,
+      recipients
+    },
+    attachmentStatements
+  );
+  if (persisted.duplicate) return { id: persisted.id, duplicate: true };
   console.log(
     JSON.stringify({
       event: 'email_ingested',

@@ -74,7 +74,15 @@ const existing = await query(
    UNION ALL SELECT 'mailbox', mi.id, mi.address FROM mailbox_identities mi WHERE mi.address=${sq(address)}`
 );
 const existingDomain = existing.find((row) => row.kind === 'domain');
-const existingProduct = existing.find((row) => row.kind === 'product' && row.value === product);
+// Reuse must be decided the same way productId is derived, or a casing variant
+// misses the name check, collides on the identical slug id, and aborts the
+// non-atomic seed part-way through.
+const existingProduct = existing.find((row) => row.kind === 'product' && row.id === productId);
+// A reused row keeps its stored name, which the final verification must expect.
+const effectiveProduct = existingProduct?.value ?? product;
+if (existingProduct && existingProduct.value !== product) {
+  console.log(`Reusing existing product "${existingProduct.value}" (${existingProduct.id}) for "${product}".`);
+}
 const existingMailbox = existing.find((row) => row.kind === 'mailbox');
 const useDomainId = existingDomain?.id ?? domainId;
 const useProductId = existingProduct?.id ?? productId;
@@ -141,7 +149,7 @@ const verified = await query(
   `SELECT d.name domain, p.name product, mi.address mailbox FROM mailbox_identities mi
    JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id WHERE mi.address=${sq(address)}`
 );
-if (verified.length !== 1 || verified[0].domain !== domain || verified[0].product !== product) {
+if (verified.length !== 1 || verified[0].domain !== domain || verified[0].product !== effectiveProduct) {
   throw new Error('Post-onboarding verification failed: the seeded rows do not match the request.');
 }
 console.log(
