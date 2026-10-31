@@ -3,6 +3,7 @@
 // The Access-protected app therefore stays fully fail-closed, and SvelteKit's
 // cross-site form protection keeps applying to every real page.
 import { submitIntake, type TurnstileVerifier } from './lib/server/intake';
+import { readBounded } from './ingest';
 import type { Env } from './types';
 import { IngestError } from './types';
 
@@ -45,7 +46,15 @@ export async function handleIntakeRequest(request: Request, env: Env, verify?: T
   }
   let form: FormData;
   try {
-    form = await request.formData();
+    if (!request.body) throw new Error('Missing form body');
+    // Bound the raw request before multipart parsing, including chunked requests.
+    const bytes = await readBounded(request.body, 128 * 1024);
+    form = await new Response(bytes, {
+      headers: { 'Content-Type': request.headers.get('Content-Type') || '' }
+    }).formData();
+    form.forEach((value) => {
+      if (typeof value !== 'string') throw new Error('Form attachments are not supported');
+    });
   } catch {
     return new Response('invalid_submission', { status: 400, headers: cors(origin) });
   }

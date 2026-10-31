@@ -5,7 +5,15 @@
 
   let { children } = $props();
   let goPending = false;
-
+  const links = [
+    { href: '/today', label: 'Today', icon: 'today' },
+    { href: '/inbox', label: 'Inbox', icon: 'inbox' },
+    { href: '/contacts', label: 'Contacts', icon: 'contacts' },
+    { href: '/opportunities', label: 'Opportunities', icon: 'opportunities' },
+    { href: '/settings', label: 'Settings', icon: 'settings' }
+  ] as const;
+  const active = (href: string) =>
+    page.url.pathname.startsWith(href) || (href === '/inbox' && page.url.pathname.startsWith('/conversations'));
   function keys(event: KeyboardEvent) {
     const target = event.target as HTMLElement;
     if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable) return;
@@ -28,71 +36,42 @@
 </script>
 
 <svelte:window onkeydown={keys} />
-
-<div class="min-h-screen min-[1120px]:grid min-[1120px]:grid-cols-[220px_minmax(0,1fr)]">
-  <aside class="sticky top-0 hidden h-screen flex-col bg-sidebar px-4 py-6 text-paper min-[1120px]:flex">
-    <a class="font-bold tracking-[0.01em] no-underline" href="/today">
-      Domain Desk
-      <small class="mt-1 block text-[0.72rem] font-normal text-[#bbbdb6]">Inbound operations desk</small>
+<a href="#main-content" class="skip-link">Skip to content</a>
+<div class="min-h-screen">
+  <header class="flex min-h-20 items-center justify-between gap-6 border-b border-line bg-paper px-4 min-[720px]:px-8">
+    <div class="min-[1120px]:hidden"><Nav /></div>
+    <a
+      class="flex shrink-0 items-center gap-3 text-base font-semibold tracking-tight"
+      href="/today"
+      aria-label="Domain Desk Inbound operations desk"
+    >
+      <span aria-hidden="true" class="hidden h-4 w-3 border-x-[4px] border-teal min-[400px]:block"></span>Domain Desk
     </a>
-    <nav class="mt-8 grid gap-1" aria-label="Primary">
-      <a
-        class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/today') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`}
-        aria-current={page.url.pathname.startsWith('/today') ? 'page' : undefined}
-        href="/today">Today</a
-      >
-      <a
-        class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/inbox') || page.url.pathname.startsWith('/conversations') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`}
-        aria-current={page.url.pathname.startsWith('/inbox') || page.url.pathname.startsWith('/conversations')
-          ? 'page'
-          : undefined}
-        href="/inbox">Inbox</a
-      >
-      <a
-        class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/contacts') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`}
-        aria-current={page.url.pathname.startsWith('/contacts') ? 'page' : undefined}
-        href="/contacts">Contacts</a
-      >
-      <a
-        class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/opportunities') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`}
-        aria-current={page.url.pathname.startsWith('/opportunities') ? 'page' : undefined}
-        href="/opportunities">Opportunities</a
-      >
-      <a
-        class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/settings') ? 'bg-sidebar-soft text-white' : 'text-[#e8e5dc] hover:bg-white/6'}`}
-        aria-current={page.url.pathname.startsWith('/settings') ? 'page' : undefined}
-        href="/settings">Settings</a
-      >
+    <nav class="hidden self-stretch min-[1120px]:flex" aria-label="Primary">
+      {#each links as link}
+        <a
+          class={`flex items-center border-b-2 px-5 text-sm ${active(link.href) ? 'border-teal font-semibold text-teal' : 'border-transparent text-muted hover:text-ink'}`}
+          aria-current={active(link.href) ? 'page' : undefined}
+          href={link.href}>{link.label}</a
+        >
+      {/each}
     </nav>
-    <p class="mt-auto text-xs leading-relaxed text-[#d7d5cc]">
-      Self-hosted · Cloudflare<br /><span class="text-[#aeb4af]">D1 + R2 · Access protected</span>
-    </p>
-  </aside>
-
-  <div class="grid min-h-screen grid-rows-[56px_minmax(0,1fr)] min-[1120px]:contents">
-    <header class="flex items-center justify-between border-b border-line bg-paper px-4 min-[1120px]:hidden">
-      <Nav />
-      <a class="font-bold tracking-[0.01em] no-underline" href="/inbox">Domain Desk</a>
-      <button
-        class="grid size-8 place-items-center rounded-full border border-line bg-transparent text-sm font-bold text-ink hover:bg-paper-soft"
+    <div class="flex items-center gap-5">
+      <span class="hidden font-mono text-[10px] text-muted min-[720px]:inline">PERSONAL · UTC</span><button
+        class="size-10 border border-line font-mono text-xs text-muted hover:border-ink"
         aria-label="Keyboard shortcuts"
         onclick={() => document.querySelector<HTMLDialogElement>('#key-help')?.showModal()}>?</button
       >
-    </header>
-    <main
-      class="min-w-0 min-[720px]:grid min-[720px]:h-[calc(100vh-56px)] min-[720px]:grid-cols-[330px_minmax(0,1fr)] min-[1120px]:h-screen min-[1120px]:grid-cols-[minmax(320px,370px)_minmax(0,1fr)]"
-    >
-      {@render children()}
-    </main>
-  </div>
+    </div>
+  </header>
+  <main id="main-content" tabindex="-1" class="min-w-0">{@render children()}</main>
 </div>
-
 <dialog
   id="key-help"
-  class="m-auto w-[min(90vw,26rem)] rounded-lg border border-line bg-paper p-6 text-ink shadow-drawer"
+  class="m-auto w-[min(90vw,26rem)] rounded-2xl border border-line bg-paper p-6 text-ink shadow-drawer"
 >
-  <p class="mb-1 text-[0.68rem] font-extrabold tracking-[0.14em] text-copper uppercase">Navigation</p>
-  <h2 class="font-reading text-2xl font-semibold">Keyboard shortcuts</h2>
+  <p class="eyebrow">Keyboard reference</p>
+  <h2 class="mt-2 text-2xl font-semibold">Keyboard shortcuts</h2>
   <dl class="my-6 grid grid-cols-[max-content_1fr] gap-x-5 gap-y-3 text-sm">
     <dt class="font-bold">/</dt>
     <dd>Focus Inbox search</dd>
@@ -102,9 +81,6 @@
     <dd>Go to Inbox / Settings</dd>
   </dl>
   <form method="dialog" class="text-right">
-    <button
-      class="rounded-md border border-teal-dark bg-teal px-4 py-2 text-sm font-semibold text-white hover:bg-teal-dark"
-      >Close</button
-    >
+    <button class="rounded-lg bg-teal px-4 py-2 text-sm font-semibold text-white">Close</button>
   </form>
 </dialog>

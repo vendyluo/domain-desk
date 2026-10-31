@@ -2,24 +2,61 @@
 
 A personal-first, self-hosted inbound CRM running as one TypeScript Cloudflare Worker. Email Routing invokes the `email` handler; bounded raw MIME (10 MiB) is parsed with `postal-mime`; D1 is the sole canonical CRM graph; attachment bytes are written to R2 before their D1 metadata. SvelteKit 5 provides the server-first responsive Today, Inbox, Contacts, Opportunities, and Settings UI. A thin project entrypoint combines the official adapter's `fetch` output with Email Routing's `email` handler. Raw MIME archiving is intentionally deferred.
 
-Version 1 supports exactly manually configured domains, products, and mailboxes. Inbound arrives by email and by an embeddable landing-page form; replies send through the Cloudflare Email Service binding. It does **not** modify DNS or replace an existing mail provider, use AI, use queues or Durable Objects, or act as a generic workflow/CRM platform.
+Version 1 supports explicitly configured domains, products, and exact mailboxes. Inbound arrives by email and by an embeddable landing-page form; owner-reviewed plain-text replies send through the Cloudflare Email Service binding. It does **not** modify DNS or replace an existing mail provider, use AI, use queues or Durable Objects, or act as a generic workflow/CRM platform. `DESIGN.md` includes future directions, not a release checklist.
+
+## Daily workflow and release boundary
+
+1. Receive mail or a verified form submission. Inbox shows its product, domain, exact envelope mailbox and contact. Opening a message does not mark it handled.
+2. Read the safe plain-text timeline and download email attachments. Matching RFC reply IDs join the conversation; an equal subject alone does not. The same message delivered to two configured mailboxes retains two attribution contexts.
+3. Save a reply draft, review **From, To, subject and saved text**, approve that version, then send once. The recipient is the latest inbound sender, not an unrelated primary address after a contact merge. This is not Reply-all and does not follow a supplied Reply-To header.
+4. Inspect the outcome. **Accepted means the provider accepted it, not delivered.** Unresolved sends block further replies in that conversation. See reconciliation below.
+5. Add a next action, then complete/reschedule/cancel it from Today. Creating a draft or sending never silently completes follow-up work. Create an opportunity from conversation evidence when needed; activation requires a next action.
+
+All displayed timestamps, due-time inputs and Today day boundaries use **UTC** (Taipei is UTC+8). Per-deployment timezone selection remains unimplemented. Form email addresses are supplied by visitors, not ownership-verified; review them before replying.
+
+**Locally verified:** Workers D1/R2 ingestion, deduplication, cross-mailbox attribution, HTML-only text extraction, safe attachment download, email/form reply threading, atomic send claims, stale approval rejection, provider failure/unknown outcomes, acceptance-write failure, evidence-only reconciliation, follow-up/opportunity invariants, and signed Access JWT validation. Recovery tests reject corrupt backups, invalid references and path escapes before target writes.
+
+**Production acceptance still required:** live Access login/denial on every exposed hostname, real Email Routing duplicate delivery, Email Service sender onboarding and delivered Message-ID fidelity, real recipient acceptance/bounce behavior, and backup/restore into isolated remote resources. Local Email Service simulation is not evidence of delivery. A previous deployment or historical inbound test does not validate this version.
+
+**Not implemented:** form uploads, outbound attachments, delivery/bounce callbacks, automatic retries, remote restore automation, scheduled/encrypted backups, retention/deletion UI, domain discovery/DNS management, and AI agents. The existing operator onboarding CLI is optional; none of these are prerequisites for the first exact-mailbox workflow.
+
+Reproduce checks (all storage and sends are simulated locally):
+
+```sh
+npm ci
+npm run check
+npm run test:recovery          # requires sqlite3
+npx playwright install chromium  # first machine setup only
+E2E_PORT=4187 npm run test:e2e   # desktop + 320px mobile, MIME → reply → follow-up
+```
+
+Playwright creates disposable `.wrangler/e2e` data and captures reply review, accepted/unresolved outcomes, Settings and opportunity evidence under `test-results/`. It invokes Wrangler's local email endpoint and simulated send binding; it never sends real email. Do not reuse this directory for personal data.
+
+Verification on 2026-09-12: `npm run check` passed (format, lint, zero Svelte/TypeScript errors or warnings, 70 Workers tests and deployment dry-run); 6 recovery tests and 12 desktop/mobile browser tests passed. The browser fixture database was backed up, restored into fresh local D1/R2, then backed up again: SQL and all 3 referenced attachment files were byte-identical. Desktop/mobile review, accepted/unresolved outcomes, Settings and opportunity screenshots were inspected. The Today workbench pass additionally verified latest-inbound preview selection and inspected desktop/mobile layouts and expanded follow-up forms. This evidence covers local simulation only.
+
+For a persistent local review of that restored state, use the restore inspection command below; do not use `e2e:serve`, which intentionally resets its own fixture data.
+
+The September UI redesign uses a top navigation and an inquiry-first Today workbench: readable latest-inbound previews on the left, follow-up actions on the right, and compact queue links instead of metric cards. Action forms expand on demand; mobile stacks the two regions. The cream/cobalt palette and locally bundled Archivo / IBM Plex Mono fonts draw from the owner's Aliasport references, without treating the references as a layout template. The full-width Inbox remains the searchable archive. Server actions and reply approval boundaries are unchanged. Browser coverage includes queue navigation, action disclosure, filters, mobile navigation/focus, accessibility checks, and the complete reply workflow. Visual rationale lives in `DESIGN.md` §16.
 
 ## Prerequisites and install
 
 - Cloudflare account with Workers, D1, R2, Email Routing, and Access
 - Wrangler login (`npx wrangler login`) or appropriately scoped CI credentials
 - Node.js 22 or later (Wrangler 4 requires it)
+- `sqlite3` CLI for backup verification and local recovery
 
 ```sh
 npm install
 npm run check                 # typecheck, Worker-runtime tests, dry-run bundle
 ```
 
-Apply all three D1 migrations in order. Migration 0003 adds Slice 3B opportunities, immutable contact/conversation evidence attribution, and designated opportunity actions. Date/time form values are interpreted as UTC.
+Apply all **seven** D1 migrations in order. Migrations 0001–0003 own the inbound graph, follow-up and opportunities; 0004 adds outbound message fields; 0005 adds form intake; 0006 preserves original thread ID casing; 0007 adds persisted reply approvals and single-attempt outcomes. Migration 0007 conservatively quarantines legacy unconfirmed/failed sends because the old adapter also classified lost responses as failures. Do not apply the different, unmerged historical `0004_outbound_email.sql` on top of this history.
 
 ## Create and configure production resources
 
 Do not deploy before completing the Access steps below.
+
+**Existing installations:** first inventory the current Worker version, actual D1/R2 bindings, applied migrations, Access applications and exact routing rule. Resource names may predate the Domain Desk rename. Do not create replacements, seed a second mailbox, point these scripts at placeholder resources, or run migrations until the destination and backup are reviewed. The example names below describe a fresh installation only. Deployment, remote reads/writes, routing/Access/DNS changes, real email and pushing require separate operator authorization.
 
 ```sh
 npx wrangler d1 create domain-desk
@@ -81,7 +118,7 @@ database only. The manual `setup/one-domain.sql.example` path remains available.
 
 Send a plain-text test email with a small attachment from an external account. Check structured, body-free logs with `npx wrangler tail`, open the Access-protected Worker UI, and verify the inbox row, contact, text body, timestamps, attachment metadata, and authorized download. Downloads resolve the D1 relation before reading R2, force a safe content disposition, and fail explicitly when the referenced binary is missing or inconsistent. Re-deliver the same message and verify it remains one message. Raw HTML is never stored or rendered as UI content; the UI displays plain text only. A message that has no text/plain part stores a server-side plain-text extraction of its HTML body, so HTML-only mail remains readable without rendering HTML.
 
-Settings performs read-only probes of the D1 schema, all three migration-owned table groups, the R2 binding, and the configured Access mode. It displays status only, never issuer, audience, credentials, or other secret values.
+Settings performs read-only probes of all seven migration-owned table/column groups, the R2 binding, and the configured Access mode. It displays status only, never issuer, audience, credentials, or other secret values. Binding presence does not prove provider onboarding or a working Access policy.
 
 ## Outbound replies (Cloudflare Email Service)
 
@@ -95,11 +132,23 @@ npx wrangler email sending enable example.com   # per sending domain; Workers pa
 
 Behavior and guarantees:
 
-- The reply is recorded in D1 **before** the external send. Its `delivery_status` is `sending`
-  until the service confirms; a crash between send and confirmation leaves the message visibly
-  unconfirmed instead of silently losing the record of an external effect.
-- Success stores the returned message id and marks `sent`; failure marks `failed` with the
-  `E_*` error code on the message and in the activity history. Nothing retries automatically.
+- Drafts persist across reloads. Approval is bound to the saved content and canonical reply
+  context hash. Saving edits revokes approval; changed sender/recipient/thread context requires
+  review again. A cancelled draft cannot be sent.
+- One atomic D1 batch claims the approved draft and records the outbound message, recipient and
+  audit before the external call. Concurrent clicks and browser resubmissions cannot call the
+  provider again for that draft. This is application-level single-attempt protection, **not** a
+  claim that the provider offers exactly-once delivery or accepts an idempotency key.
+- A successful call records `accepted` and the original provider Message-ID. The legacy
+  `messages.delivery_status='sent'` value is retained for schema compatibility but displayed as
+  provider acceptance, never verified delivery. No next action is automatically completed.
+- Documented validation/policy rejections become `failed`; unknown/internal/transport failures,
+  missing provider IDs and `E_DELIVERY_FAILED` conservatively become `indeterminate`. Raw provider
+  exception messages are not stored. A failure to persist acceptance leaves the durable
+  `sending` claim, with the provider ID in the error and structured log for recovery. It is never
+  reclassified as confirmed rejection.
+- `sending` and `indeterminate` block new replies in that conversation. There is no background
+  retry. A confirmed failure permits a **new draft and approval**, not replay of the old attempt.
 - Replies carry `In-Reply-To`/`References` from the latest inbound message so the customer's
   client threads them. After the first deployment, verify threading end to end: send a reply,
   answer it from an external mailbox, and confirm the answer lands in the same conversation
@@ -110,6 +159,15 @@ Behavior and guarantees:
 If a reply fails with `E_SENDER_NOT_VERIFIED` or `E_SENDER_DOMAIN_NOT_AVAILABLE`, complete
 `wrangler email sending enable` for that domain. `E_RECIPIENT_SUPPRESSED` means the recipient
 previously bounced or complained; do not force resends.
+
+**Unknown outcome:** do not copy the message into a new conversation to bypass the lock. Inspect
+Email Service records/support using the sender, recipient, attempt ID and timestamp. From the
+conversation, expand **Reconcile with provider evidence**. Record the evidence and either
+confirmed acceptance (provider Message-ID required, restores reply threading) or confirmed
+non-acceptance. This only records an audited result; it does not send anything. An interrupted
+`sending` attempt has a minimum 15-minute guard, and the operator must also verify it has ended.
+Elapsed time or an empty recipient inbox alone is **not** proof of non-acceptance. If evidence
+is unavailable, keep it unresolved rather than risk a duplicate.
 
 ## Landing-page form intake
 
@@ -125,9 +183,11 @@ Setup, in order:
    landing-page domains. Put the site key in `TURNSTILE_SITE_KEY` (`wrangler.toml` vars) and set
    the secret with `npx wrangler secret put TURNSTILE_SECRET_KEY`. Local development uses
    Cloudflare's documented always-pass test keys already present in the `local` env.
-2. In Zero Trust, add a **bypass** policy for `<worker-hostname>/intake/*` to the Access
-   application. Every other path stays fully protected; the app additionally re-checks the JWT
-   on all non-intake routes.
+2. In Zero Trust, use a **separate, more-specific self-hosted Access application** for
+   `<worker-hostname>/intake/*` with a Bypass policy. Keep the main application and its owner-only
+   Allow policy on the rest of the hostname. Do **not** add a hostname-wide Bypass policy to the
+   main app. The Worker independently rechecks JWTs for all management routes and only exposes
+   POST/OPTIONS intake; GET requests to intake do not expose data.
 3. Recommended: add a WAF rate-limiting rule for `/intake/*`.
 4. Copy the per-mailbox embed snippet from Settings into the landing page. Pages that prefer an
    inline (no-navigation) experience can `fetch()` the same endpoint with `FormData`; the
@@ -142,17 +202,65 @@ responses never echo submitted content. Rejections log `form_intake_rejected` wi
 `unknown_mailbox`, `invalid_origin`, `turnstile_failed`, `invalid_submission`, or
 `not_configured`.
 
+Only HTTPS origins on the configured domain/subdomains and standard port are accepted. Raw
+request bodies are capped at 128 KiB before parsing; text fields have smaller independent
+limits. File fields are explicitly rejected: receive attachments by email instead. Origin and
+Turnstile reduce abuse but do not authenticate the supplied email address. Keep the widget's
+hostname allowlist narrow and add edge rate limits before opening a high-traffic public form.
+
 ## Verified backup and recovery boundary
 
-Create a new backup directory from either local or remote resources. The command is read-only: it exports the complete D1 schema/data, queries canonical attachment references, downloads exactly those R2 objects, verifies D1 size and SHA-256 metadata, and writes `manifest.json`. It refuses an ambiguous source, an existing destination, unsafe object paths, missing objects, and hash/size drift. Unreferenced R2 objects are intentionally excluded.
+Create a new backup directory from either local or explicitly authorized remote resources. The command exports complete D1 SQL, reads attachment references **from that exported snapshot** (not a later live query), downloads exactly those R2 objects, and checks size/SHA-256, SQLite integrity and foreign keys. It emits all table definitions before row data so forward foreign-key references restore in D1, and encodes text as UTF-8 hex to avoid unsupported SQLite `unistr()` syntax while preserving multiline content. Manifest v2 includes SQL size/hash as well as attachment facts. Existing destinations, unsafe paths, missing objects and hash drift fail closed. Unreferenced R2 objects are intentionally excluded.
 
 ```sh
 npm run backup -- --local --output /safe/path/domain-desk-local-2026-08-26
 # Remote is an explicit separate choice and uses the configured Wrangler identity:
 npm run backup -- --remote --output /safe/path/domain-desk-production-2026-08-26
+# Rehearse against the disposable browser fixture state:
+npm run backup -- --local --persist-to .wrangler/e2e --output /safe/path/desk-rehearsal
+npm run restore -- --local --backup /safe/path/desk-rehearsal --persist-to /safe/path/new-local-state
 ```
 
-Treat a backup as complete only when the command prints `Verified backup created`. Protect the directory like mailbox data. Recovery is deliberately operator-run: create fresh D1/R2 resources, inspect `manifest.json`, import `database.sql`, upload each listed `backup_path` to its exact `object_key`, then run the Settings probes and download representative attachments before changing routing. This v1 command does not delete, retain credentials, schedule backups, upload backups, or mutate the source resources.
+Treat a backup as complete only when it prints `Verified backup created`. Keep it in private,
+encrypted storage outside the repository; backups contain correspondence and are not themselves
+encrypted or signed. Restore only trusted backups. Local restore verifies all hashes, safe paths
+(including symlinks), foreign keys and exact manifest/DB attachment agreement **before** writing
+the target. The target and its parent must be distinct: the parent exists, the target must not.
+If importing later fails, keep the partial target isolated and retry with a new disposable
+directory. Manifest v1 is not accepted; generate a new backup with this command.
+
+To inspect the restored local state, run `npx wrangler dev --env local --local --persist-to
+/safe/path/new-local-state --port 4188` after `npm run build:web`, then verify Settings and
+attachment downloads. Do not run the fixture preparation script on the restored directory.
+
+Remote recovery remains separately authorized and operator-run: create isolated D1/R2 resources,
+verify the backup locally, import `database.sql`, upload every listed `backup_path` to its exact
+`object_key`, verify the full graph and representative attachment bytes, then decide whether to
+switch bindings/routing. **Keep sending disabled on the restored deployment until all post-backup
+provider activity is reconciled.** An old snapshot may contain an approved draft that the original
+deployment subsequently sent; replaying it would duplicate real email. A restore cannot recover
+mail received after the snapshot or undo already accepted email. Keep the old resources and use
+an explicit cutover/recovery-point decision; never roll schema backward or delete live data as a
+normal rollback.
+
+## Shortest production activation checklist
+
+1. Authorize a scoped read-only inventory of any existing installation; choose reuse/upgrade or
+   isolated new resources. Record the exact Worker, D1/R2, hostname, product and mailbox.
+2. Review a full backup and the pending migration list, then separately authorize migration,
+   deployment and an owner-only Access policy. Keep sending disabled until sender configuration
+   and approval behavior have been checked. Recheck alternate hostnames for JWT denial.
+3. Authorize one exact Email Routing rule without replacing third-party MX. If using forms,
+   authorize the narrow intake Access bypass and Turnstile configuration. Never use catch-all
+   or broad DNS automation for this acceptance test.
+4. Authorize test email only between named controlled addresses: inbound + attachment + duplicate,
+   approved reply + external answer into the same conversation, then next action and opportunity.
+   Compare the received RFC Message-ID with the stored provider ID; distinguish acceptance from
+   delivery. Verify a wrong identity cannot read pages, downloads or submit management actions.
+5. Rehearse an authorized restore into fresh remote resources with sending disabled, verify data
+   and attachment bytes, and keep a current private backup. Push/release only after separately
+   reviewing the exact branch and destination. Until these gates pass, call the installation
+   **pending production acceptance**, not production-ready.
 
 ## Behavior and troubleshooting
 
@@ -164,9 +272,9 @@ Treat a backup as complete only when the command prints `Verified backup created
 
 If mail is rejected, inspect `wrangler tail` for `unknown_mailbox`, `malformed_mime`, `message_too_large`, or `attachment_storage_failed`; then verify the exact lowercase mailbox seed, routing rule, size, and R2 binding. If the UI returns 403 in production, use the Access-protected hostname and verify the Access application/policy. If tests fail before starting, verify `node --version` is 22+.
 
-## Cleanup / rollback
+## Retirement (not rollback)
 
-First disable/delete the exact Email Routing custom-address rule. Run and verify the backup command above, then delete the Worker and resources only after separately confirming that the backup is readable:
+Do not delete resources to roll back a deployment. Use a compatible previous Worker version or a forward fix while preserving the database and send-attempt history. For explicitly authorized permanent retirement only: verify a backup and rehearse restore first, disable the exact Email Routing custom-address rule, then separately authorize deletion of the named Worker and resources:
 
 ```sh
 npx wrangler delete

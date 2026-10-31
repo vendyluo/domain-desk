@@ -155,7 +155,7 @@ Destructive or externally visible actions use a confirmation surface that names 
 
 **User goal:** triage inbound mail while always knowing which product, domain, and mailbox produced the relationship.
 
-**Desktop layout:** a three-region application shell:
+**Earlier desktop proposal (superseded by the implemented redesign in §16):** a three-region application shell:
 
 ```text
 ┌──────────────┬──────────────────────────┬────────────────────────────────────┐
@@ -331,7 +331,7 @@ Inbound Email Worker
 
 The current synchronous ingestion path is valid and remains the baseline. A Queue or Workflow may be introduced only when a later slice demonstrates a retry, fan-out, or long-running orchestration need that cannot be handled safely in the Email Worker; it must not change D1's canonical role. Durable Objects are appropriate only for demonstrated serialized or live-session state. They are not the canonical mailbox-by-mailbox CRM store.
 
-The web application remains one Cloudflare Worker using SvelteKit 5 server-first rendering and the official Cloudflare adapter. A project-owned thin entrypoint delegates `fetch` to the adapter-generated Worker and exports the Email Routing `email` handler, preserving one deployment. Bits UI supplies headless accessible primitives where interaction warrants them (beginning with the mobile navigation Dialog). Tailwind CSS v4 provides layout and state utilities over project-owned CSS-first semantic tokens for the warm-light visual language; it is an implementation tool, not a source of generic component aesthetics. SvelteKit routes use links and ordinary server form actions for critical behavior before optional progressive enhancement, with minimal client JavaScript and no client-side-only application shell, shadcn preset, third-party theme, or large frontend framework beyond SvelteKit itself.
+The web application remains one Cloudflare Worker using SvelteKit 5 server-first rendering and the official Cloudflare adapter. A project-owned thin entrypoint delegates `fetch` to the adapter-generated Worker and exports the Email Routing `email` handler, preserving one deployment. Bits UI supplies headless accessible primitives where interaction warrants them (beginning with the mobile navigation Dialog). Tailwind CSS v4 provides layout and state utilities over project-owned CSS-first semantic tokens for the cream-and-ink visual language; it is an implementation tool, not a source of generic component aesthetics. SvelteKit routes use links and ordinary server form actions for critical behavior before optional progressive enhancement, with minimal client JavaScript and no client-side-only application shell, shadcn preset, third-party theme, or large frontend framework beyond SvelteKit itself.
 
 Routes and views own HTTP concerns and presentation only. Query, command, validation, authorization, and lifecycle rules live in plain business functions so the same behavior can later be called by web routes, an API, an agent adapter, or MCP without duplication. This is the required implementation direction for future work, not authorization to refactor the verified ingestion core during this design task.
 
@@ -354,6 +354,19 @@ Email ingestion must succeed even when AI classification is unavailable. AI erro
 ## 10. Outbound lifecycle
 
 The system must never record an intent as a completed send.
+
+The daily-use release uses a synchronous, owner-approved plain-text reply: persist a draft,
+review its fixed mailbox sender and latest inbound sender recipient, approve its exact content
+hash, then claim one attempt before calling Email Service. Contact merges never redirect a
+reply to a different primary address. Editing or a changed inbound reply context requires a new
+review. Each draft has at most one provider call; a confirmed failure can be followed by a new
+draft and approval, not replay of the old attempt. `sending` after interruption and
+`indeterminate` both block further sends in that conversation. Only an operator's recorded
+provider evidence can reconcile them to accepted (with provider Message-ID) or confirmed
+non-acceptance. Lack of delivery alone is not non-acceptance. No automatic retry or next-action
+completion is introduced. Existing legacy failures are conservatively treated as indeterminate
+because the old adapter also classified lost responses as failures. The legacy `messages.sent`
+storage value means provider acceptance, not delivery; `reply_drafts` owns the precise state.
 
 ```text
 draft → approved → queued → sending → accepted → delivered | bounced
@@ -561,37 +574,25 @@ Public-project quality is demonstrated by:
 
 ## 16. Visual direction
 
-The interface is a **warm-light operations desk**: quiet, precise, and optimized for reading correspondence and making careful decisions. It should feel closer to a well-kept paper inbox on a daylight desk than to a software metrics console.
+The September 2026 redesign takes palette and typographic cues from the owner's [Aliasport console](https://console.aliasport.dev/signal/coverage) and [Aliasport website](https://aliasport.dev/), but centers the product on a **daily inquiry workbench**. Both the light-sage concept and its densely ruled register replacement were rejected. The current core screen uses stronger reading hierarchy, top navigation, inquiry previews and a narrower follow-up agenda rather than copying the reference layout.
 
 ### 16.1 Color and luminance
 
-The default light palette uses these roles; implementations may adjust values only to preserve or improve WCAG contrast:
+`src/styles.css` owns the Tailwind v4 semantic palette in OKLCH. Warm neutrals use hue 90, cobalt uses hue 268, and attention colors use hue 45. Pale paper distinguishes working surfaces from the cream canvas. The legacy `teal` token name now resolves to cobalt so existing controls share the new action color. Distinguish status with text/icons as well as color. Provider acceptance remains different from verified delivery.
 
-- canvas: warm gray `#F3F0E9`
-- primary working surface: `#FCFBF8`
-- raised or selected surface: `#FFFFFF`
-- subtle recessed surface: `#EAE5DC`
-- primary ink: `#25231F`
-- secondary ink: `#666158`
-- quiet border: `#D8D1C5`
-- accent copper: `#9A5A32`
-- muted amber background: `#F2E3C6`
-- critical ink/background: `#8A2F2A` / `#F7E3DF`
-- success ink/background: `#356047` / `#E3EEE6`
-
-Surfaces are distinguished first by luminance and borders, not shadows. One subtle shadow is permitted for an overlay, menu, or mobile drawer. Accent color identifies focus, selected context, and consequential action; it is not used as decoration or as the sole state signal.
+Surfaces are distinguished by luminance and borders, without shadows. Accent color identifies focus, selected context, and consequential action; it is not the sole state signal.
 
 ### 16.2 Typography and density
 
-Application chrome uses a native humanist sans stack (`ui-sans-serif`, system UI) at 14–16 px with tabular numerals for timestamps and counts. Email body reading uses a 16 px, 1.6 line-height readable stack; it may use `ui-serif` only when tests show no CJK fallback or alignment regression, otherwise it remains system sans. Subjects use weight and spacing rather than oversized display typography. The content measure for message bodies is 68–76 characters while metadata may span wider.
+Archivo Variable supplies application chrome and correspondence; IBM Plex Mono supplies compact operational labels and numbering. Fonts are bundled locally, not requested from an external font service. Main page headings use 24 px, row text 14 px, machine labels 10–12 px, and correspondence 15 px with 1.75 line height and a 65ch cap. Mobile form controls use at least 16 px to avoid input zoom. Counts and timestamps use tabular numerals.
 
 Spacing follows a 4 px base with common gaps of 8, 12, 16, 24, and 32 px. Inbox rows are compact enough for triage but never below a 44 px interactive target on touch. Dense operational tables use 40 px rows on pointer devices with distinct focus and selected treatments.
 
 ### 16.3 Composition rules
 
-The application is cardless by default. Lists use rows, section boundaries, whitespace, and quiet rules; details use a continuous reading surface. Cards are reserved for a genuinely movable or independently actionable object, not for every metric or settings section. There is no hero area after authentication.
+Today uses a 48px desktop heading, compact queue links and an asymmetric inquiry/next-action layout above 1250px. Inquiries show the latest inbound sender and plain-text excerpt, not a newer outgoing reply. Follow-up forms expand on demand. The due group includes undated and designated future opportunity actions and explicitly explains this. Mobile stacks inquiries before follow-up, with queue links for direct access. Inbox retains aligned archive rows; correspondence and reply review remain separate routes. No priority scores or inferred completion states are invented.
 
-The design explicitly rejects a Linear clone, purple/blue gradients, glassmorphism, translucent blur, floating card dashboards, neon status colors, oversized rounded containers, generic analytics tiles, and motion used to imply sophistication. Rounded corners are restrained at 4–8 px and do not turn every surface into a pill.
+Do not add decorative charts, fake statuses, AI affordances, glassmorphism or attention-seeking motion. Today inquiry surfaces use restrained 6px corners; data surfaces remain flat. Saved reply review, explicit approval and unresolved-send warnings remain visible; aesthetics must not change their contracts.
 
 ## 17. Interaction, responsive, and accessibility acceptance criteria
 
@@ -599,7 +600,7 @@ These criteria are release gates for every implemented surface, not optional pol
 
 ### 17.1 Responsive behavior
 
-- At 1120 px and above, Inbox uses the three-region layout; at 720–1119 px navigation collapses; below 720 px lists and details become separate routes. Other split views use the same boundaries.
+- At 1120 px and above, navigation sits in the top header; below it, navigation is a modal drawer. Inbox remains a full-width list; conversation details use separate routes at all widths. Their contact context moves beneath the timeline below 920 px.
 - Layout works without horizontal page scrolling at 320 CSS px. Operational tables transform into labelled stacked rows rather than shrinking unreadably.
 - Mobile actions remain reachable without hover. Sticky controls must not cover focused content, system safe areas, or the final timeline item.
 - Zoom to 200% and text-only zoom do not hide actions or truncate state labels. Orientation changes preserve selected record and entered form values.

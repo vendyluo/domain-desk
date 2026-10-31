@@ -3,10 +3,11 @@
 </script>
 
 <svelte:head><title>Opportunities · Domain Desk</title></svelte:head>
-<section class="col-span-full overflow-auto px-5 py-8 min-[720px]:px-10">
+<section class="workspace-page">
   <div class="mx-auto max-w-6xl">
-    <h1 class="font-reading text-4xl">Opportunities</h1>
-    <p class="text-muted">Concrete intent, evidence, and one explicit next step.</p>
+    <p class="eyebrow">04 / Commercial intent</p>
+    <h1 class="mt-2 border-b border-ink pb-4 text-2xl font-semibold">Opportunities</h1>
+    <p class="mt-2 text-sm text-muted">Concrete intent, evidence, and one explicit next step.</p>
     <form class="my-6 flex gap-2">
       <label for="state" class="self-center font-semibold">State</label><select
         id="state"
@@ -25,21 +26,41 @@
           ? 'No opportunities match this filter. Choose All to reset.'
           : 'No opportunities yet. Open an Inbox conversation with real evidence to create one.'}
       </p>{:else}
-      <div class="overflow-x-auto">
+      <ul class="record-list list-none divide-y divide-line p-0 min-[720px]:hidden">
+        {#each data.opportunities as o}
+          <li class="py-5">
+            <span class="status-pill mb-3">{o.state}</span>
+            <a class="block text-sm font-semibold text-teal underline" href={'/opportunities/' + o.id}>{o.title}</a>
+            <dl class="mt-3 grid grid-cols-[80px_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
+              <dt class="text-muted">Contact</dt>
+              <dd>{o.display_name || o.contact_email}</dd>
+              <dt class="text-muted">Product</dt>
+              <dd>{o.product} · {o.domain}</dd>
+              <dt class="text-muted">Value</dt>
+              <dd>{o.value_minor === null ? '—' : `${o.value_minor} ${o.currency}`}</dd>
+              <dt class="text-muted">Next action</dt>
+              <dd>{o.next_action || '—'}</dd>
+            </dl>
+          </li>
+        {/each}
+      </ul>
+      <div class="hidden overflow-x-auto rounded-xl border border-line bg-paper min-[720px]:block">
         <table class="w-full border-collapse text-left text-sm">
           <thead
-            ><tr class="border-b border-line"
+            ><tr class="border-b border-line bg-paper-soft text-xs text-muted"
               ><th class="p-3">Opportunity</th><th>Contact</th><th>Product / domain</th><th>State</th><th>Value</th><th
                 >Next action</th
               ></tr
             ></thead
           ><tbody
-            >{#each data.opportunities as o}<tr class="border-b border-line"
+            >{#each data.opportunities as o}<tr class="border-b border-line hover:bg-paper-soft"
                 ><td class="p-3"
                   ><a class="font-semibold text-teal underline" href={'/opportunities/' + o.id}>{o.title}</a></td
-                ><td>{o.display_name || o.contact_email}</td><td>{o.product} · {o.domain}</td><td>{o.state}</td><td
-                  >{o.value_minor === null ? '—' : `${o.value_minor} ${o.currency}`}</td
-                ><td>{o.next_action || '—'}</td></tr
+                ><td>{o.display_name || o.contact_email}</td><td>{o.product} · {o.domain}</td><td
+                  ><span class="status-pill">{o.state}</span></td
+                ><td>{o.value_minor === null ? '—' : `${o.value_minor} ${o.currency}`}</td><td
+                  >{o.next_action || '—'}</td
+                ></tr
               >{/each}</tbody
           >
         </table>

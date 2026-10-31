@@ -38,7 +38,9 @@ function text(value: unknown, max: number): string {
 export function originAllowed(origin: string | null, domain: string): boolean {
   if (!origin) return false;
   try {
-    const host = new URL(origin).hostname.toLowerCase();
+    const url = new URL(origin);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port) return false;
+    const host = url.hostname.toLowerCase();
     return host === domain || host.endsWith(`.${domain}`);
   } catch {
     return false;

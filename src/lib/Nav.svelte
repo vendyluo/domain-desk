@@ -3,6 +3,7 @@
   import { page } from '$app/state';
 
   let open = $state(false);
+  const links = ['Today', 'Inbox', 'Contacts', 'Opportunities', 'Settings'];
 </script>
 
 <Dialog.Root bind:open>
@@ -19,39 +20,19 @@
     >
       <Dialog.Title class="font-reading text-2xl font-semibold">Domain Desk</Dialog.Title>
       <Dialog.Description class="mt-1 text-sm text-muted">Daily inbound operations</Dialog.Description>
-      <nav class="mt-8 grid gap-1" aria-label="Mobile navigation">
-        <a
-          class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/today') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`}
-          aria-current={page.url.pathname.startsWith('/today') ? 'page' : undefined}
-          href="/today"
-          onclick={() => (open = false)}>Today</a
-        >
-        <a
-          class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/inbox') || page.url.pathname.startsWith('/conversations') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`}
-          aria-current={page.url.pathname.startsWith('/inbox') || page.url.pathname.startsWith('/conversations')
-            ? 'page'
-            : undefined}
-          href="/inbox"
-          onclick={() => (open = false)}>Inbox</a
-        >
-        <a
-          class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/contacts') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`}
-          aria-current={page.url.pathname.startsWith('/contacts') ? 'page' : undefined}
-          href="/contacts"
-          onclick={() => (open = false)}>Contacts</a
-        >
-        <a
-          class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/opportunities') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`}
-          aria-current={page.url.pathname.startsWith('/opportunities') ? 'page' : undefined}
-          href="/opportunities"
-          onclick={() => (open = false)}>Opportunities</a
-        >
-        <a
-          class={`rounded-md px-3 py-2.5 no-underline ${page.url.pathname.startsWith('/settings') ? 'bg-[#e3ece8] font-semibold text-teal-dark' : 'hover:bg-paper-soft'}`}
-          aria-current={page.url.pathname.startsWith('/settings') ? 'page' : undefined}
-          href="/settings"
-          onclick={() => (open = false)}>Settings</a
-        >
+      <nav class="mt-8 grid border-y border-line" aria-label="Mobile navigation">
+        {#each links as label, i}
+          {@const href = `/${label.toLowerCase()}`}
+          {@const active =
+            page.url.pathname.startsWith(href) || (label === 'Inbox' && page.url.pathname.startsWith('/conversations'))}
+          <a
+            class={`flex min-h-11 items-center gap-4 border-l-2 px-3 py-2.5 no-underline ${active ? 'border-teal bg-sidebar-soft font-semibold text-ink' : 'border-transparent hover:bg-paper-soft'}`}
+            aria-current={active ? 'page' : undefined}
+            {href}
+            onclick={() => (open = false)}
+            ><span aria-hidden="true" class="font-mono text-[10px] text-muted">0{i + 1}</span>{label}</a
+          >
+        {/each}
       </nav>
       <Dialog.Close
         class="mt-8 rounded-md border border-line-strong bg-transparent px-4 py-2 text-sm font-semibold hover:bg-paper-soft"

@@ -1,24 +1,33 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/archivo/standard.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
 
 @theme {
-  --color-canvas: #f2eee5;
-  --color-canvas-deep: #e8e1d5;
-  --color-paper: #fffdf8;
-  --color-paper-soft: #f8f4ec;
-  --color-ink: #28251f;
-  --color-ink-soft: #4e4940;
-  --color-muted: #686057;
-  --color-line: #d9d0c1;
-  --color-line-strong: #b9ae9e;
-  --color-copper: #9b452b;
-  --color-copper-dark: #78331f;
-  --color-teal: #235f59;
-  --color-teal-dark: #194943;
-  --color-sidebar: #242c29;
-  --color-sidebar-soft: #35413d;
-  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-reading: Georgia, Cambria, 'Times New Roman', serif;
-  --shadow-drawer: 0 20px 60px rgb(22 20 16 / 0.28);
+  --color-canvas: oklch(0.962 0.01 90);
+  --color-canvas-deep: oklch(0.926 0.018 90);
+  --color-paper: oklch(0.98 0.009 90);
+  --color-paper-soft: oklch(0.945 0.014 90);
+  --color-ink: oklch(0.225 0.012 90);
+  --color-ink-soft: oklch(0.36 0.014 90);
+  --color-muted: oklch(0.47 0.019 90);
+  --color-line: oklch(0.858 0.025 90);
+  --color-line-strong: oklch(0.225 0.012 90);
+  --color-copper: oklch(0.5 0.12 45);
+  --color-copper-dark: oklch(0.42 0.105 45);
+  --color-teal: oklch(0.49 0.235 268);
+  --color-teal-dark: oklch(0.4 0.21 268);
+  --color-sidebar: oklch(0.962 0.01 90);
+  --color-sidebar-soft: oklch(0.934 0.023 268);
+  --font-sans: 'Archivo Variable', Archivo, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-reading: 'Archivo Variable', Archivo, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --shadow-sm: none;
+  --shadow-drawer: none;
 }
 
 @layer base {
@@ -26,6 +35,7 @@
     color: var(--color-ink);
     background: var(--color-canvas);
     font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
   }
 
   html {
@@ -57,6 +67,24 @@
     overflow-wrap: anywhere;
   }
 
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.025em;
+  }
+  time {
+    font-variant-numeric: tabular-nums;
+  }
+  button {
+    min-height: 40px;
+  }
+  input,
+  select,
+  textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   :focus-visible {
     outline: 3px solid var(--color-teal);
     outline-offset: 3px;
@@ -64,11 +92,58 @@
 
   ::selection {
     color: var(--color-ink);
-    background: #e8c7a7;
+    background: var(--color-sidebar-soft);
   }
 
   dialog::backdrop {
-    background: rgb(24 27 24 / 0.66);
+    background: oklch(0.25 0.018 165 / 0.45);
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply font-mono text-[10px] font-normal tracking-[0.1em] text-muted uppercase;
+  }
+  .workspace-page {
+    @apply mx-auto max-w-[1400px] px-4 py-7 min-[720px]:px-8 min-[720px]:py-9;
+  }
+  .panel {
+    @apply overflow-hidden border-y border-line-strong bg-transparent;
+  }
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 bg-paper-soft px-2 py-1 font-mono text-[10px] font-normal text-muted;
+  }
+  .status-attention {
+    @apply bg-orange-50 text-copper-dark;
+  }
+  .avatar {
+    @apply grid size-9 shrink-0 place-items-center border border-line font-mono text-xs text-muted;
+  }
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-teal focus:px-4 focus:py-3 focus:text-white;
+  }
+  .summary-card {
+    @apply border-t border-line-strong bg-transparent py-4;
+  }
+  .record-list {
+    @apply overflow-hidden border-y border-line bg-transparent;
+  }
+  .record-list > li {
+    @apply px-2;
+  }
+  .record-list > li:hover {
+    @apply bg-paper-soft;
+  }
+}
+
+@media (max-width: 719px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  button {
+    min-height: 44px;
   }
 }
 

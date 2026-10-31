@@ -119,6 +119,29 @@ describe('Slice 3A services', () => {
 });
 
 describe('Today queue completeness', () => {
+  it('previews the latest inbound message rather than the original inquiry or newer outbound reply', async () => {
+    for (const [id, name, body, received] of [
+      ['first', 'Original name', 'Initial request', '2026-05-01T10:00:00Z'],
+      ['second', 'Updated name', 'Latest customer question', '2026-05-02T10:00:00Z'],
+      ['third', 'Owner', 'Our outgoing answer', '2026-05-03T10:00:00Z']
+    ]) {
+      const raw = new TextEncoder().encode(
+        `From: ${name} <a@x.test>\r\nTo: hello@example.com\r\nMessage-ID: <${id}@x.test>\r\n${id === 'first' ? '' : 'In-Reply-To: <first@x.test>\r\n'}Subject: Inquiry\r\n\r\n${body}`
+      ).buffer;
+      await ingestRaw(env as Env, 'hello@example.com', raw, new Date(received));
+    }
+    const outgoing = await env.DB.prepare("UPDATE messages SET direction='outbound' WHERE sender_name='Owner'").run();
+    expect(outgoing.meta.changes).toBe(1);
+    const today = await listToday(env.DB, new Date('2026-05-04T12:00:00Z'));
+    expect(today.inbound).toHaveLength(1);
+    expect(today.inbound[0]).toMatchObject({
+      sender_name: 'Updated name',
+      sender_address: 'a@x.test',
+      preview: 'Latest customer question\n',
+      mailbox: 'hello@example.com'
+    });
+  });
+
   it('keeps undated open actions visible in the due group on any day', async () => {
     await ingestRaw(env as Env, 'hello@example.com', mail('A <a@x.test>', 'undated'), new Date('2026-05-01Z'));
     const contact = (await env.DB.prepare('SELECT id FROM contacts').first<{ id: string }>())!;

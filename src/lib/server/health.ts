@@ -75,6 +75,11 @@ export async function deploymentHealth(env: Env): Promise<DeploymentHealth> {
     ready: threadReady,
     missing: threadReady ? [] : ['messages raw thread id columns']
   });
+  migrations.push({
+    name: '0007 · approved single-attempt replies',
+    ready: present.has('reply_drafts'),
+    missing: present.has('reply_drafts') ? [] : ['reply_drafts']
+  });
 
   let attachmentsReady: boolean;
   try {

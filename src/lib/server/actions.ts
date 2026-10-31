@@ -272,7 +272,14 @@ export async function listToday(db: DB, now = new Date()) {
     .all<Record<string, unknown>>();
   const inbound = await db
     .prepare(
-      `SELECT c.id,c.subject,c.updated_at,ct.display_name,ce.address contact_email,mi.address mailbox,p.name product,d.name domain FROM conversations c JOIN contacts ct ON ct.id=c.contact_id JOIN contact_email_addresses ce ON ce.id=ct.primary_email_id JOIN mailbox_identities mi ON mi.id=c.mailbox_identity_id JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id WHERE c.needs_attention=1 ORDER BY c.updated_at,c.id`
+      `SELECT c.id,c.subject,c.updated_at,ct.display_name,ce.address contact_email,mi.address mailbox,p.name product,d.name domain,
+        m.sender_name,m.sender_address,substr(m.text_body,1,240) preview
+       FROM conversations c JOIN contacts ct ON ct.id=c.contact_id
+       JOIN contact_email_addresses ce ON ce.id=ct.primary_email_id
+       JOIN mailbox_identities mi ON mi.id=c.mailbox_identity_id
+       JOIN products p ON p.id=mi.product_id JOIN domains d ON d.id=p.domain_id
+       LEFT JOIN messages m ON m.id=(SELECT id FROM messages WHERE conversation_id=c.id AND direction='inbound' ORDER BY received_at DESC,id DESC LIMIT 1)
+       WHERE c.needs_attention=1 ORDER BY c.updated_at,c.id`
     )
     .all<Record<string, unknown>>();
   const isOverdue = (row: Record<string, unknown>) => Boolean(row.due_at) && String(row.due_at).slice(0, 10) < today;

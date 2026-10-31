@@ -5,10 +5,10 @@
 
 <svelte:head><title>{opportunity.title} · Opportunities</title></svelte:head>
 
-<article class="col-span-full overflow-auto px-5 py-8 min-[720px]:px-10">
+<article class="workspace-page">
   <div class="mx-auto max-w-4xl">
     <a href="/opportunities" class="text-teal underline">← Opportunities</a>
-    <h1 class="mt-4 font-reading text-4xl">{opportunity.title}</h1>
+    <h1 class="mt-4 text-3xl font-semibold">{opportunity.title}</h1>
     <p>
       {opportunity.state} ·
       <a href={'/contacts/' + opportunity.contact_id}>{opportunity.display_name || opportunity.contact_email}</a>

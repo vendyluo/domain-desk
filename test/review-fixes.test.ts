@@ -5,7 +5,7 @@ import { listInbox } from '../src/lib/server/inbox';
 import { createNextAction, listToday, transitionNextAction } from '../src/lib/server/actions';
 import { mergeContacts } from '../src/lib/server/contacts';
 import { createOpportunity, transitionOpportunity } from '../src/lib/server/opportunities';
-import { sendReply } from '../src/lib/server/outbound';
+import { sendReply } from './reply-fixture';
 import { intakeMailboxes } from '../src/lib/server/health';
 import { verifyTurnstile } from '../src/lib/server/intake';
 import { handleIntakeRequest } from '../src/intake-http';

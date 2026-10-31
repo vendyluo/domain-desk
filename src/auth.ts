@@ -5,7 +5,8 @@ const keysets = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 type Verify = typeof jwtVerify;
 
 export async function authorizeRequest(request: Request, env: Env, verify: Verify = jwtVerify): Promise<boolean> {
-  if (env.LOCAL_DEV === 'true') return true;
+  if (env.LOCAL_DEV === 'true' && ['localhost', '127.0.0.1', '[::1]'].includes(new URL(request.url).hostname))
+    return true;
   const assertion = request.headers.get('Cf-Access-Jwt-Assertion');
   const issuer = env.ACCESS_TEAM_DOMAIN?.replace(/\/$/, '');
   if (
@@ -21,7 +22,12 @@ export async function authorizeRequest(request: Request, env: Env, verify: Verif
       keys = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
       keysets.set(issuer, keys);
     }
-    await verify(assertion, keys, { issuer, audience: env.ACCESS_AUD });
+    await verify(assertion, keys, {
+      issuer,
+      audience: env.ACCESS_AUD,
+      requiredClaims: ['exp', 'iat'],
+      algorithms: ['RS256']
+    });
     return true;
   } catch {
     return false;

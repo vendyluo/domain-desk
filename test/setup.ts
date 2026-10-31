@@ -6,9 +6,11 @@ import slice3b from '../migrations/0003_opportunities.sql?raw';
 import outbound from '../migrations/0004_outbound.sql?raw';
 import formIntake from '../migrations/0005_form_intake.sql?raw';
 import threadFidelity from '../migrations/0006_thread_fidelity.sql?raw';
+import replyApproval from '../migrations/0007_reply_approval.sql?raw';
 
 beforeEach(async () => {
   for (const table of [
+    'reply_drafts',
     'contact_merges',
     'opportunity_conversations',
     'opportunity_contacts',
@@ -26,7 +28,7 @@ beforeEach(async () => {
     'domains'
   ])
     await env.DB.prepare(`DROP TABLE IF EXISTS ${table}`).run();
-  for (const sql of [migration, slice3a, slice3b, outbound, formIntake, threadFidelity])
+  for (const sql of [migration, slice3a, slice3b, outbound, formIntake, threadFidelity, replyApproval])
     for (const statement of sql
       .split(';')
       .map((s) => s.trim())

@@ -1,6 +1,13 @@
 import { error, fail } from '@sveltejs/kit';
 import { getConversation, setHandled } from '$lib/server/inbox';
-import { sendReply } from '$lib/server/outbound';
+import {
+  approveReply,
+  cancelReply,
+  listReplies,
+  reconcileReply,
+  saveReplyDraft,
+  sendReply
+} from '$lib/server/outbound';
 import { createNextAction } from '$lib/server/actions';
 import { createOpportunity } from '$lib/server/opportunities';
 import { redirect } from '@sveltejs/kit';
@@ -8,32 +15,57 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params, platform }) => {
   const detail = await getConversation(platform!.env.DB, params.id);
   if (!detail) error(404, 'Conversation not found');
-  return detail;
+  return { ...detail, replies: await listReplies(platform!.env.DB, params.id) };
 };
 export const actions: Actions = {
   reply: async ({ request, params, platform }) => {
     const f = await request.formData();
     try {
-      await sendReply(platform!.env, params.id, f.get('body'));
-      return { success: true };
+      const operation = f.get('operation');
+      if (operation === 'save') await saveReplyDraft(platform!.env.DB, params.id, f.get('body'), f.get('id'));
+      else if (operation === 'approve') await approveReply(platform!.env.DB, params.id, f.get('id'), f.get('hash'));
+      else if (operation === 'send') await sendReply(platform!.env, params.id, f.get('id'), f.get('hash'));
+      else if (operation === 'cancel') await cancelReply(platform!.env.DB, params.id, f.get('id'));
+      else if (operation === 'reconcile')
+        await reconcileReply(
+          platform!.env.DB,
+          params.id,
+          f.get('id'),
+          f.get('outcome'),
+          f.get('evidence'),
+          f.get('providerId')
+        );
+      else throw new Error('Invalid reply operation.');
     } catch (e) {
-      return fail(400, { message: e instanceof Error ? e.message : 'Send failed.' });
+      return fail(400, {
+        message:
+          e instanceof Error ? e.message : 'Reply operation failed. Check its recorded state before trying again.',
+        replyBody: typeof f.get('body') === 'string' ? String(f.get('body')) : undefined,
+        reconciliation: {
+          id: String(f.get('id') || ''),
+          outcome: String(f.get('outcome') || ''),
+          evidence: String(f.get('evidence') || ''),
+          providerId: String(f.get('providerId') || '')
+        }
+      });
     }
+    redirect(303, `/conversations/${encodeURIComponent(params.id)}`);
   },
   opportunity: async ({ request, params, platform }) => {
     const f = await request.formData();
+    let id: string;
     try {
-      const id = await createOpportunity(platform!.env.DB, {
+      id = await createOpportunity(platform!.env.DB, {
         title: f.get('title'),
         desiredOutcome: f.get('desiredOutcome'),
         conversationId: params.id,
         valueMinor: f.get('valueMinor'),
         currency: f.get('currency')
       });
-      redirect(303, `/opportunities/${id}`);
     } catch (e) {
       return fail(400, { message: e instanceof Error ? e.message : 'Invalid opportunity.' });
     }
+    redirect(303, `/opportunities/${encodeURIComponent(id)}`);
   },
   state: async ({ request, params, platform }) => {
     const value = (await request.formData()).get('state');

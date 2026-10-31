@@ -24,7 +24,8 @@ for (const migration of [
   'migrations/0003_opportunities.sql',
   'migrations/0004_outbound.sql',
   'migrations/0005_form_intake.sql',
-  'migrations/0006_thread_fidelity.sql'
+  'migrations/0006_thread_fidelity.sql',
+  'migrations/0007_reply_approval.sql'
 ]) {
   await run(['d1', 'execute', 'domain-desk', '--local', '--persist-to', state, '--file', migration]);
 }
@@ -34,6 +35,26 @@ const sql = (await readFile('test/e2e/fixtures.sql', 'utf8'))
 await writeFile(fixtureSql, sql);
 await writeFile(fixtureFile, binary);
 await run(['d1', 'execute', 'domain-desk', '--local', '--persist-to', state, '--file', fixtureSql]);
+for (const viewport of ['desktop', 'mobile']) {
+  // Synthetic failure states are separate from the actual simulator-send flow.
+  await run([
+    'd1',
+    'execute',
+    'domain-desk',
+    '--local',
+    '--persist-to',
+    state,
+    '--command',
+    `
+    INSERT INTO conversations(id,mailbox_identity_id,contact_id,subject,needs_attention,created_at,updated_at)
+    SELECT 'uncertain:${viewport}',mailbox_identity_id,contact_id,'Unresolved reply ${viewport}',1,created_at,updated_at FROM conversations WHERE id='conversation:e2e';
+    INSERT INTO messages(id,conversation_id,mailbox_identity_id,contact_id,dedupe_key,sender_address,subject,text_body,received_at,ingested_at,direction,delivery_status)
+    SELECT 'uncertain-message:${viewport}','uncertain:${viewport}',mailbox_identity_id,contact_id,'uncertain:${viewport}','hello@inquiries.example','Re: Quote','Saved reply awaiting provider evidence',received_at,ingested_at,'outbound','sending' FROM messages WHERE id='message:e2e';
+    INSERT INTO reply_drafts(id,conversation_id,state,body,context_json,content_hash,message_row_id,error_code,created_at,updated_at)
+    VALUES('uncertain-reply:${viewport}','uncertain:${viewport}','indeterminate','Saved reply awaiting provider evidence','{}','fixture','uncertain-message:${viewport}','provider_response_unknown','2026-08-25T12:00:00Z','2026-08-25T12:00:00Z');
+  `
+  ]);
+}
 await run([
   'r2',
   'object',

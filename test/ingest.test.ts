@@ -30,7 +30,8 @@ describe('inbound ingestion', () => {
       )
     ).toBe(false);
     const local = { ...production, LOCAL_DEV: 'true' };
-    expect(await authorizeRequest(new Request('https://crm.test'), local)).toBe(true);
+    expect(await authorizeRequest(new Request('http://127.0.0.1:4173'), local)).toBe(true);
+    expect(await authorizeRequest(new Request('https://crm.test'), local)).toBe(false);
   });
 
   it('creates the complete graph and deduplicates Message-ID delivery', async () => {

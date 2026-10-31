@@ -1,160 +1,151 @@
 <script lang="ts">
+  import Icon from '$lib/Icon.svelte';
   let { data } = $props();
-
   const date = (value: string) =>
-    new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+    new Intl.DateTimeFormat(undefined, {
+      timeZone: 'UTC',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(value));
   const hasFilters = $derived(Object.values(data.filters).some(Boolean));
+  const attention = $derived(data.rows.filter((row) => row.needs_attention).length);
 </script>
 
 <svelte:head><title>Inbox · Domain Desk</title></svelte:head>
-
-<section class="overflow-auto border-line bg-paper min-[720px]:border-r">
-  <header class="flex items-start justify-between border-b border-line px-4 py-5 min-[720px]:px-6">
+<div class="workspace-page">
+  <header class="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-ink pb-4">
     <div>
-      <p class="mb-1 text-[0.68rem] font-extrabold tracking-[0.14em] text-copper uppercase">Operations</p>
-      <h1 class="font-reading text-[1.9rem] leading-tight font-semibold">Inbox</h1>
-      <p class="mt-1 text-xs text-muted">
-        {data.rows.length}
-        {data.rows.length === 1 ? 'conversation' : 'conversations'}
-      </p>
+      <p class="eyebrow">02 / Correspondence</p>
+      <h1 class="mt-2 text-2xl font-semibold">Inbox</h1>
     </div>
-    <button
-      class="hidden size-8 place-items-center rounded-full border border-line bg-transparent text-sm font-bold hover:bg-paper-soft min-[1120px]:grid"
-      aria-label="Keyboard shortcuts"
-      onclick={() => document.querySelector<HTMLDialogElement>('#key-help')?.showModal()}>?</button
+    <a href="/today" class="inline-flex min-h-11 items-center gap-2 font-mono text-xs text-teal"
+      >View next actions <Icon name="arrow" size={16} /></a
     >
   </header>
-
-  <form class="border-b border-line p-4" method="GET">
-    <label>
-      <span class="mb-1.5 block text-xs font-bold text-ink-soft">Search conversations</span>
-      <input
-        class="w-full rounded-md border border-line-strong bg-white px-3 py-2.5 text-sm placeholder:text-muted/75 hover:border-muted focus:border-teal"
-        name="q"
-        value={data.filters.q || ''}
-        placeholder="Sender, subject, or text…"
-      />
-    </label>
-    <div class="mt-2.5 flex flex-wrap gap-1.5">
-      <select
-        class="min-w-0 flex-1 basis-[45%] rounded-md border border-line bg-white px-2 py-2 text-xs text-ink min-[720px]:basis-auto"
-        name="state"
-        aria-label="Handling state"
-      >
-        <option value="">All states</option>
-        <option value="attention" selected={data.filters.state === 'attention'}>Needs attention</option>
-        <option value="handled" selected={data.filters.state === 'handled'}>Handled</option>
-      </select>
-      <select
-        class="min-w-0 flex-1 basis-[45%] rounded-md border border-line bg-white px-2 py-2 text-xs text-ink min-[720px]:basis-auto"
-        name="product"
-        aria-label="Product"
-      >
-        <option value="">All products</option>
-        {#each [...new Map(data.options.map((option: any) => [option.product_id, option])).values()] as option}
-          <option value={option.product_id} selected={data.filters.product === option.product_id}
-            >{option.product}</option
-          >
-        {/each}
-      </select>
-      <select
-        class="min-w-0 flex-1 basis-[45%] rounded-md border border-line bg-white px-2 py-2 text-xs text-ink min-[720px]:basis-auto"
-        name="domain"
-        aria-label="Domain"
-      >
-        <option value="">All domains</option>
-        {#each [...new Map(data.options.map((option: any) => [option.domain_id, option])).values()] as option}
-          <option value={option.domain_id} selected={data.filters.domain === option.domain_id}>{option.domain}</option>
-        {/each}
-      </select>
-      <select
-        class="min-w-0 flex-1 basis-[45%] rounded-md border border-line bg-white px-2 py-2 text-xs text-ink min-[720px]:basis-auto"
-        name="mailbox"
-        aria-label="Mailbox"
-      >
-        <option value="">All mailboxes</option>
-        {#each data.options as option}
-          <option value={option.mailbox_id} selected={data.filters.mailbox === option.mailbox_id}
-            >{option.mailbox}</option
-          >
-        {/each}
-      </select>
-      <button
-        class="rounded-md border border-teal-dark bg-teal px-3 py-2 text-xs font-semibold text-white hover:bg-teal-dark"
-        >Apply</button
-      >
-    </div>
-  </form>
-
-  {#if !data.rows.length}
-    <div class="mx-auto max-w-md px-6 py-16">
-      <p class="mb-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-copper uppercase">
-        {hasFilters ? 'No results' : 'Ready for mail'}
+  <section class="panel" aria-label="Inbox workspace">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3">
+      <div class="flex items-center gap-2.5">
+        <h2 class="font-mono text-[10px] tracking-wide uppercase">
+          {hasFilters ? 'Filtered conversations' : 'All conversations'}
+        </h2>
+        <span class="font-mono text-xs tabular-nums">/ {data.rows.length}</span>
+      </div>
+      <p class="font-mono text-[10px] text-muted">
+        {attention} need attention in this view <span class="ml-2 text-line-strong">·</span>
+        <span class="ml-2">UTC</span>
       </p>
-      <h2 class="font-reading text-2xl font-semibold">
-        {hasFilters ? 'No matching conversations' : 'Your inbox is ready'}
-      </h2>
-      <p class="my-3 text-sm leading-relaxed text-muted">
-        {hasFilters
-          ? 'No conversations match these filters.'
-          : 'Route an exact configured mailbox to this Email Worker, then send an external test message.'}
-      </p>
-      {#if hasFilters}
-        <a
-          class="inline-block rounded-md border border-teal-dark bg-teal px-4 py-2 text-sm font-semibold text-white no-underline hover:bg-teal-dark"
-          href="/inbox">Reset filters</a
-        >
-      {:else}
-        <a
-          class="font-semibold text-teal underline decoration-teal/40 underline-offset-4 hover:text-teal-dark"
-          href="/settings">Review setup safety</a
-        >
-      {/if}
     </div>
-  {:else}
-    <ol class="m-0 list-none p-0" aria-label="Conversations">
-      {#each data.rows as row}
-        <li class="border-b border-line">
-          <a
-            class="group block px-4 py-4 no-underline hover:bg-paper-soft focus-visible:bg-paper-soft focus-visible:outline-offset-[-3px] min-[720px]:px-5"
-            href={'/conversations/' + encodeURIComponent(row.id)}
+    <form class="grid gap-3 border-b border-ink py-4 min-[900px]:grid-cols-[minmax(180px,1fr)_2fr]" method="GET">
+      <label class="relative flex items-center"
+        ><span class="sr-only">Search conversations</span><span class="pointer-events-none absolute left-3 text-muted"
+          ><Icon name="search" size={16} /></span
+        ><input
+          class="w-full rounded-lg border border-line bg-paper py-2.5 pr-3 pl-10 text-sm"
+          name="q"
+          value={data.filters.q || ''}
+          placeholder="Search conversations…"
+        /></label
+      >
+      <div class="flex flex-wrap gap-2">
+        <select
+          class="min-w-0 flex-1 basis-[40%] rounded-lg border border-line bg-paper px-2 text-xs min-[720px]:basis-0"
+          name="state"
+          aria-label="Handling state"
+          ><option value="">All states</option><option value="attention" selected={data.filters.state === 'attention'}
+            >Needs attention</option
+          ><option value="handled" selected={data.filters.state === 'handled'}>Handled</option></select
+        >
+        {#each ['product', 'domain', 'mailbox'] as filter}
+          <select
+            class="min-w-0 flex-1 basis-[40%] rounded-lg border border-line bg-paper px-2 text-xs min-[720px]:basis-0"
+            name={filter}
+            aria-label={filter[0].toUpperCase() + filter.slice(1)}
           >
-            <div class="flex items-baseline justify-between gap-3">
-              <strong class="min-w-0 truncate text-sm text-ink">{row.sender_name || row.sender_address}</strong>
-              <time
-                class="shrink-0 text-[0.68rem] text-muted"
-                datetime={row.updated_at}
-                title={new Date(row.updated_at).toISOString()}>{date(row.updated_at)}</time
+            <option value="">All {filter === 'mailbox' ? 'mailboxes' : `${filter}s`}</option>
+            {#each [...new Map(data.options.map((option: any) => [option[`${filter}_id`], option])).values()] as option}
+              <option value={option[`${filter}_id`]} selected={data.filters[filter] === option[`${filter}_id`]}
+                >{option[filter]}</option
               >
-            </div>
-            <h2 class="my-1 truncate text-[0.94rem] font-semibold text-ink-soft group-hover:text-ink">
-              {row.subject || 'No subject'}
-            </h2>
-            <p class="my-1 truncate text-[0.8rem] text-muted">{row.preview || 'No plain-text preview'}</p>
-            <p class="my-2 truncate text-[0.72rem] font-semibold text-teal">
-              {row.product} · {row.domain} · {row.mailbox}
-            </p>
-            <div class="flex items-center justify-between gap-3 text-[0.7rem] text-muted">
-              <span class={row.needs_attention ? 'font-extrabold text-copper-dark' : ''}
-                >{row.needs_attention ? 'Needs attention' : 'Handled'}</span
-              >
-              {#if row.attachment_count}
-                <span aria-label={`${row.attachment_count} attachments`}
-                  ><span aria-hidden="true">⌕</span> {row.attachment_count}</span
-                >
-              {/if}
-            </div>
-          </a>
-        </li>
-      {/each}
-    </ol>
-  {/if}
-</section>
-
-<section class="hidden place-items-center bg-canvas-deep px-12 min-[720px]:grid">
-  <div class="max-w-sm border-l-2 border-copper/55 pl-6">
-    <p class="mb-2 text-[0.68rem] font-extrabold tracking-[0.14em] text-copper uppercase">Conversation workspace</p>
-    <h2 class="font-reading text-2xl font-semibold">Select a conversation</h2>
-    <p class="mt-2 text-sm leading-relaxed text-muted">Read the full plain-text timeline and contact context here.</p>
-  </div>
-</section>
+            {/each}
+          </select>
+        {/each}
+        <button class="rounded-lg bg-teal px-4 py-2 text-xs font-semibold text-white">Apply</button>
+      </div>
+    </form>
+    {#if !data.rows.length}
+      <div class="mx-auto max-w-md px-6 py-20 text-center">
+        <span class="mx-auto grid size-14 place-items-center rounded-2xl bg-sidebar text-teal"
+          ><Icon name="inbox" size={26} /></span
+        >
+        <h2 class="mt-5 text-xl font-semibold">{hasFilters ? 'No matching conversations' : 'Your inbox is ready'}</h2>
+        <p class="mt-2 mb-5 text-sm leading-relaxed text-muted">
+          {hasFilters
+            ? 'No conversations match these filters. Try a different search or start fresh.'
+            : 'Connect an exact mailbox and let your first conversation find its way here.'}
+        </p>
+        <a
+          class="inline-flex min-h-11 items-center rounded-lg bg-teal px-4 text-sm font-medium text-white"
+          href={hasFilters ? '/inbox' : '/settings'}>{hasFilters ? 'Reset filters' : 'Review setup safety'}</a
+        >
+      </div>
+    {:else}
+      <div
+        class="hidden grid-cols-[160px_minmax(0,1fr)_180px_150px] gap-4 border-b border-line px-2 py-3 font-mono text-[10px] text-muted uppercase min-[900px]:grid"
+      >
+        <span>Contact / sender</span><span>Subject / preview</span><span>Product / mailbox</span><span
+          class="text-right">Last activity · UTC</span
+        >
+      </div>
+      <ol class="m-0 list-none divide-y divide-line p-0" aria-label="Conversations">
+        {#each data.rows as row}
+          <li>
+            <a
+              class="group grid gap-3 px-2 py-4 no-underline hover:bg-paper-soft focus-visible:outline-offset-[-3px] min-[900px]:grid-cols-[160px_minmax(0,1fr)_180px_150px] min-[900px]:items-center min-[900px]:gap-4"
+              href={'/conversations/' + encodeURIComponent(row.id)}
+            >
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium">{row.sender_name || row.sender_address}</p>
+                <p class="mt-1 truncate font-mono text-[10px] text-muted" title={row.sender_address}>
+                  {row.sender_address}
+                </p>
+              </div>
+              <div class="min-w-0">
+                <h2 class="truncate text-sm font-semibold group-hover:text-teal">{row.subject || 'No subject'}</h2>
+                <p class="mt-1 truncate text-xs leading-relaxed text-muted">
+                  {row.preview || 'No plain-text preview'}
+                </p>
+              </div>
+              <div class="min-w-0">
+                <p class="truncate text-xs font-semibold text-ink-soft">{row.product}</p>
+                <p class="mt-1 truncate font-mono text-[10px] text-muted" title={`${row.domain} · ${row.mailbox}`}>
+                  {row.mailbox}
+                </p>
+                <span class="sr-only">{row.domain}</span>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2 min-[900px]:justify-end">
+                <time
+                  class="font-mono text-[10px] text-muted"
+                  datetime={row.updated_at}
+                  title={new Date(row.updated_at).toISOString()}>{date(row.updated_at)}</time
+                ><span class={`status-pill ${row.needs_attention ? 'status-attention' : ''}`}
+                  ><Icon name={row.needs_attention ? 'clock' : 'check'} size={12} />{row.needs_attention
+                    ? 'Needs attention'
+                    : 'Handled'}</span
+                >{#if row.attachment_count}<span
+                    class="flex items-center gap-1 text-xs text-muted"
+                    aria-label={`${row.attachment_count} attachments`}
+                    ><Icon name="attachment" size={13} />{row.attachment_count}</span
+                  >{/if}
+              </div>
+            </a>
+          </li>
+        {/each}
+      </ol>
+    {/if}
+  </section>
+  <p class="mt-4 font-mono text-[10px] leading-relaxed text-muted">
+    Email + form intake. Opening a conversation does not mark it handled.
+  </p>
+</div>

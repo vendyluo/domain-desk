@@ -1,7 +1,8 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { ingestRaw } from '../src/ingest';
-import { sendReply } from '../src/lib/server/outbound';
+import { sendReply } from './reply-fixture';
+import { saveReplyDraft } from '../src/lib/server/outbound';
 import type { Env } from '../src/types';
 
 const inboundRaw = (headers = 'Message-ID: <parent@customer.test>\r\n') =>
@@ -67,11 +68,13 @@ describe('outbound replies', () => {
       .first<any>())!;
     expect(recipient).toMatchObject({ kind: 'to', address: 'ada@customer.test', mailbox_identity_id: null });
     const events = (
-      await env.DB.prepare('SELECT event_type FROM activity_events WHERE source_id=? ORDER BY occurred_at,id')
-        .bind(id)
+      await env.DB.prepare(
+        "SELECT event_type FROM activity_events WHERE subject_id=? AND event_type IN ('reply.send_requested','reply.accepted') ORDER BY occurred_at,id"
+      )
+        .bind(conv)
         .all<{ event_type: string }>()
     ).results.map((event) => event.event_type);
-    expect(events).toEqual(['message.send_requested', 'message.sent']);
+    expect(events).toEqual(['reply.send_requested', 'reply.accepted']);
     expect(
       (await env.DB.prepare('SELECT updated_at FROM conversations WHERE id=?').bind(conv).first<any>())!.updated_at
     ).toBe('2026-08-01T11:00:00.000Z');
@@ -87,20 +90,22 @@ describe('outbound replies', () => {
     const row = (await env.DB.prepare("SELECT * FROM messages WHERE direction='outbound'").first<any>())!;
     expect(row).toMatchObject({ delivery_status: 'failed', delivery_error: 'E_SENDER_NOT_VERIFIED' });
     const events = (
-      await env.DB.prepare('SELECT event_type,reason FROM activity_events WHERE source_id=? ORDER BY occurred_at,id')
-        .bind(row.id)
+      await env.DB.prepare(
+        "SELECT event_type,new_state_json FROM activity_events WHERE subject_id=? AND event_type IN ('reply.send_requested','reply.failed') ORDER BY occurred_at,id"
+      )
+        .bind(conv)
         .all<any>()
     ).results;
-    expect(events.map((event: any) => event.event_type)).toEqual(['message.send_requested', 'message.send_failed']);
-    expect(events[1].reason).toBe('E_SENDER_NOT_VERIFIED');
+    expect(events.map((event: any) => event.event_type)).toEqual(['reply.send_requested', 'reply.failed']);
+    expect(JSON.parse(events[1].new_state_json).code).toBe('E_SENDER_NOT_VERIFIED');
   });
 
   it('refuses to send without the binding or a valid body, writing no state', async () => {
     const conv = await conversationId();
     await expect(sendReply({ DB: env.DB, EMAIL: undefined }, conv, 'Hi')).rejects.toThrow('not configured');
     const fake = fakeEmail({ messageId: '<x@y>' });
-    await expect(sendReply({ DB: env.DB, EMAIL: fake.binding }, conv, '')).rejects.toThrow('required');
-    await expect(sendReply({ DB: env.DB, EMAIL: fake.binding }, 'missing', 'Hi')).rejects.toThrow('not found');
+    await expect(saveReplyDraft(env.DB, conv, '')).rejects.toThrow('required');
+    await expect(saveReplyDraft(env.DB, 'missing', 'Hi')).rejects.toThrow('not found');
     expect((await env.DB.prepare("SELECT count(*) n FROM messages WHERE direction='outbound'").first<any>())!.n).toBe(
       0
     );

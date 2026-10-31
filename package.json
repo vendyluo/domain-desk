@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite dev",
     "build:web": "vite build",
-    "e2e:serve": "npm run build:web && node scripts/e2e-prepare.mjs && wrangler dev --env local --local --persist-to .wrangler/e2e --port 4173 --show-interactive-dev-session=false",
+    "e2e:serve": "npm run build:web && node scripts/e2e-prepare.mjs && wrangler dev --env local --local --persist-to .wrangler/e2e --port ${E2E_PORT:-4173} --show-interactive-dev-session=false",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
@@ -16,6 +16,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "backup": "node scripts/backup.mjs",
+    "restore": "node scripts/restore.mjs",
+    "test:recovery": "node --test test/backup-restore.node-test.mjs",
     "onboard": "node scripts/onboard-domain.mjs",
     "build": "vite build && wrangler deploy --dry-run --outdir dist --env=",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
@@ -32,6 +34,8 @@
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^5.20260826.1",
     "@eslint/js": "^10.0.1",
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
     "@playwright/test": "^1.62.1",
     "@sveltejs/adapter-cloudflare": "^7.2.9",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",

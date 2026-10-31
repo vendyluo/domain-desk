@@ -5,7 +5,9 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (!event.platform?.env || !(await authorizeRequest(event.request, event.platform.env))) {
     return new Response('Cloudflare Access required', { status: 403 });
   }
-  return resolve(event);
+  const response = await resolve(event);
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
 };
 
 export const handleError: HandleServerError = ({ error }) => {

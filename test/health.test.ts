@@ -15,7 +15,8 @@ describe('deployment health', () => {
           { name: '0003 · opportunities', ready: true, missing: [] },
           { name: '0004 · outbound replies', ready: true, missing: [] },
           { name: '0005 · form intake', ready: true, missing: [] },
-          { name: '0006 · reply thread fidelity', ready: true, missing: [] }
+          { name: '0006 · reply thread fidelity', ready: true, missing: [] },
+          { name: '0007 · approved single-attempt replies', ready: true, missing: [] }
         ]
       },
       attachments: { ready: true },

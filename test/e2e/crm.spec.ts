@@ -17,6 +17,7 @@ test('critical inbound CRM states are usable and safe', async ({ page }, testInf
   await expect(page.getByRole('heading', { name: 'Inbox', level: 1 })).toBeVisible();
   await expect(page.getByRole('link', { name: /Pricing request/ })).toContainText('Pricing request — 年間契約');
   await expectNoSeriousAccessibilityViolations(page);
+  await page.screenshot({ path: testInfo.outputPath('inbox.png'), fullPage: true });
 
   await page.getByRole('link', { name: /Pricing request/ }).click();
   await expect(page.getByRole('heading', { name: 'Pricing request — 年間契約', level: 1 })).toBeVisible();
@@ -38,15 +39,29 @@ test('critical inbound CRM states are usable and safe', async ({ page }, testInf
   await expect(page.getByRole('heading', { name: 'Today', level: 1 })).toBeVisible();
   await expect(page.getByText('Review seat pricing')).toBeVisible();
   await expect(page.getByText('Schedule technical review')).toBeVisible();
+  await page.getByRole('link', { name: /^Due today/ }).click();
+  await expect(page).toHaveURL(/#queue-2$/);
+  await expect(page.getByRole('button', { name: 'Complete and replace', exact: true })).not.toBeVisible();
+  await page.getByText('Update next step or record outcome', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Complete and replace', exact: true })).toBeVisible();
+  await expectNoSeriousAccessibilityViolations(page);
+  await page.screenshot({ path: testInfo.outputPath('today-expanded.png'), fullPage: true });
+  await page.getByText('Update next step or record outcome', { exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath('today.png'), fullPage: true });
 
   await page.goto('/contacts');
   await expect(page.getByRole('link', { name: /顾客 Ada/ })).toBeVisible();
+  await expectNoSeriousAccessibilityViolations(page);
+  await page.screenshot({ path: testInfo.outputPath('contacts.png'), fullPage: true });
   await page.goto('/opportunities');
   await expect(page.getByRole('link', { name: 'Annual team plan' })).toBeVisible();
+  await expectNoSeriousAccessibilityViolations(page);
+  await page.screenshot({ path: testInfo.outputPath('opportunities.png'), fullPage: true });
   await page.goto('/settings');
   await expect(page.getByText('0003 · opportunities')).toBeVisible();
   await expect(page.getByText('Ready · R2')).toBeVisible();
   await expectNoSeriousAccessibilityViolations(page);
+  await page.screenshot({ path: testInfo.outputPath('settings.png'), fullPage: true });
 });
 
 test('navigation, keyboard, empty filter, and 320px layout remain operable', async ({ page }, testInfo) => {
@@ -70,6 +85,7 @@ test('navigation, keyboard, empty filter, and 320px layout remain operable', asy
   await page.getByRole('button', { name: 'Apply' }).click();
   await expect(page.getByRole('heading', { name: 'No matching conversations' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Reset filters' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('inbox-empty.png'), fullPage: true });
   const horizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth
   );

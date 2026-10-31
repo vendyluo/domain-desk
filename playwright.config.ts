@@ -1,18 +1,19 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = `http://127.0.0.1:${process.env.E2E_PORT || '4173'}`;
 export default defineConfig({
   testDir: './test/e2e',
   fullyParallel: false,
   workers: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure'
   },
   webServer: {
     command: 'npm run e2e:serve',
-    url: 'http://127.0.0.1:4173/settings',
+    url: `${baseURL}/settings`,
     reuseExistingServer: false,
     timeout: 120_000
   },

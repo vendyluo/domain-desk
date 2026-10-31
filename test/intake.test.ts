@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { ingestRaw } from '../src/ingest';
 import { originAllowed, submitIntake } from '../src/lib/server/intake';
-import { sendReply } from '../src/lib/server/outbound';
+import { sendReply } from './reply-fixture';
 import type { Env } from '../src/types';
 
 const intakeEnv = { DB: env.DB, TURNSTILE_SECRET_KEY: 'test-secret' };
@@ -118,6 +118,8 @@ describe('form intake', () => {
     expect(originAllowed('https://landing.example.com', 'example.com')).toBe(true);
     expect(originAllowed('https://notexample.com', 'example.com')).toBe(false);
     expect(originAllowed('https://example.com.evil.test', 'example.com')).toBe(false);
+    expect(originAllowed('http://example.com', 'example.com')).toBe(false);
+    expect(originAllowed('https://example.com:8443', 'example.com')).toBe(false);
   });
 
   it('closes the loop: form in, email reply out, customer answer threads back', async () => {
@@ -159,6 +161,28 @@ describe('form intake', () => {
 });
 
 describe('intake HTTP endpoint', () => {
+  it('rejects oversized bodies and unsupported file attachments before verification or writes', async () => {
+    const { handleIntakeRequest } = await import('../src/intake-http');
+    const verify = async () => {
+      throw new Error('Must not verify rejected payloads');
+    };
+    const multipart = new FormData();
+    multipart.set('attachment', new Blob(['not supported']), 'document.txt');
+    for (const body of [new URLSearchParams({ message: 'x'.repeat(128 * 1024) }), multipart]) {
+      const response = await handleIntakeRequest(
+        new Request('https://desk.example/intake/mailbox-1', {
+          method: 'POST',
+          headers: { Origin: 'https://example.com' },
+          body
+        }),
+        env as Env,
+        verify
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(await count('messages')).toBe(0);
+  });
+
   const post = (path: string, body: Record<string, string>, headers: Record<string, string> = {}) =>
     new Request(`https://desk.example${path}`, { method: 'POST', body: new URLSearchParams(body), headers });
   const httpEnv = { ...(env as unknown as Env), TURNSTILE_SECRET_KEY: 'test-secret' };

@@ -1,16 +1,18 @@
 <script lang="ts">
   let { data, form } = $props();
   const date = (value: unknown) =>
-    new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(String(value)));
+    new Intl.DateTimeFormat(undefined, { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'long' }).format(
+      new Date(String(value))
+    );
   const preview: any = $derived(data.mergePreview);
 </script>
 
 <svelte:head><title>{data.contact.display_name || data.contact.primary_email} · Contacts</title></svelte:head>
 
-<article class="col-span-full overflow-auto px-5 py-8 min-[720px]:px-10">
+<article class="workspace-page">
   <div class="mx-auto max-w-4xl">
     <a href="/contacts" class="text-teal underline">← Contacts</a>
-    <h1 class="mt-4 font-reading text-4xl">{data.contact.display_name || data.contact.primary_email}</h1>
+    <h1 class="mt-4 text-3xl font-semibold">{data.contact.display_name || data.contact.primary_email}</h1>
     <p class="text-muted">Primary: {data.contact.primary_email}</p>
     {#if data.mergedAlias}<p role="status" class="my-4 border-l-2 border-copper pl-4">
         Merged alias <code>{data.mergedAlias}</code> now belongs to this contact.
